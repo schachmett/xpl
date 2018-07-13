@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<glade-catalog name="xpl_catalog" domain="glade-3" depends="gtk+" version="1.0" library="gladepython">
+  <init-function>glade_python_init</init-function>
+  
+  <glade-widget-classes>
+    <glade-widget-class title="XPL Application Window" name="XPLAppWindow" parent="GtkApplicationWindow" generic-name="xplappwindow"/>
+    <glade-widget-class title="XPL Edit Spectrum Dialog" name="XPLEditSpectrumDialog" parent="GtkDialog" generic-name="xpleditspectrumdialog"/>
+    <glade-widget-class title="XPL Spectrum TreeStore" name="XPLSpectrumTreeStore" parent="GtkTreeStore" generic-name="xplspectrumtreestore"/>
+    <glade-widget-class title="XPL Peak TreeStore" name="XPLPeakTreeStore" parent="GtkTreeStore" generic-name="xplpeaktreestore"/>
+    <glade-widget-class title="XPL Canvas" name="XPLCanvas" parent="GtkDrawingArea" generic-name="xplcanvas"/>
+    <glade-widget-class title="XPL Plot Toolbar" name="XPLPlotToolbar" parent="GtkToolbar" generic-name="xplplottoolbar"/>
+  </glade-widget-classes>
+</glade-catalog>
