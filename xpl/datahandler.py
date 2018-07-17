@@ -137,7 +137,7 @@ class DataHandler(object):
             logger.error("object with ID {} is no spectrum".format(ID))
             raise TypeError
         spectrum = self.idbook[ID]
-        regiondict["spectrum"] = spectrum
+        regiondict["spectrum"] = spectrum       #TODO do this with IDs
         region = Region(regiondict)
         spectrum.add_region(region)
         self._emit("added-region", region.ID)
@@ -472,7 +472,7 @@ class Region(XPLContainer):
 
         self.peaks = []
         self.peak_number = 0
-        self.model = RegionFitModelIface(self)
+        # self.model = RegionFitModelIface(self, None)
         self.fit_all = None
 
         if "name" not in regiondict:
@@ -510,10 +510,10 @@ class Region(XPLContainer):
             raise ValueError("background type {} doesn't exist".format(bgtype))
         self.background = calculate_background(bgtype, self.energy, self.cps)
 
-    def fit(self):
-        """Fits the sum of peaks to self._intensity - self.background, then
-        stores fit results."""
-        self.model.fit()
+    # def fit(self):
+    #     """Fits the sum of peaks to self._intensity - self.background, then
+    #     stores fit results."""
+    #     self.model.fit()
 
     @property
     def fit_intensity(self):
@@ -523,18 +523,18 @@ class Region(XPLContainer):
     def add_peak(self, peak):
         """Adds Peak peak to this region."""
         self.peaks.append(peak)
-        self.model.add_peak(peak)
+        # self.model.add_peak(peak)
         self.peak_number += 1
 
     def remove_peak(self, peak):
         """Removes Peak peak from this region."""
         self.peaks.remove(peak)
-        self.model.remove_peak(peak)
+        # self.model.remove_peak(peak)
 
     def clear_peaks(self):
         """Removes all Peaks from this region."""
-        for peak in self.peaks:
-            self.model.remove_peak(peak)
+        # for peak in self.peaks:
+        #     self.model.remove_peak(peak)
         self.peaks.clear()
 
 
@@ -560,7 +560,7 @@ class Peak(XPLContainer):
         self.region = peakdict["region"]
 
         self._constraints = []
-        self._prefix = "p{}_".format(self.ID)
+        self.prefix = "p{}_".format(self.ID)
 
         # self.height = peakdict["height"]
         # self.fwhm = peakdict["fwhm"]
@@ -574,30 +574,31 @@ class Peak(XPLContainer):
             self.name = "Peak {}".format(
                 self.peaknames[self.region.peak_number])
 
-        self.model = self.region.model
-        self.model.add_peak(self)
-        if self.guess:
-            self.model.guess_params(self)
-        else:
-            self.model.init_params(
-                self,
-                fwhm=self.fwhm,
-                area=self.area,
-                center=self.center
-            )
+        # self.model = self.region.model
+        # self.model.add_peak(self)
+        # if self.guess:
+        #     self.model.guess_params(self)
+        # else:
+        #     self.model.init_params(
+        #         self,
+        #         fwhm=self.fwhm,
+        #         area=self.area,
+        #         center=self.center
+        #     )
 
     def set(self, attr, value):
         """Overload set for some special attributes."""
         super().set(attr, value)
-        if attr == "modelfunc":
+        if attr == "model_name":
             pass
         if attr in ("fwhm", "area", "center"):
-            self.model.init_params(
-                self,
-                fwhm=self.fwhm,
-                area=self.area,
-                center=self.center
-            )
+            pass
+            # self.model.init_params(
+            #     self,
+            #     fwhm=self.fwhm,
+            #     area=self.area,
+            #     center=self.center
+            # )
 
     def add_constraints(self, constraints):
         """Adds the constraints written in the tuple constraints."""
