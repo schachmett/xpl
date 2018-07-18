@@ -51,9 +51,16 @@ EDIT_TITLES = OrderedDict(
 EXCLUDING_KEY = " (multiple)"
 
 PEAK_TITLES = OrderedDict({
+    "ID": "ID",
     "name": "Name",
-    "model": "Model"
+    "model_name": "Model"
 })
+PEAK_TV_TITLES = OrderedDict(
+    (attr, PEAK_TITLES[attr]) for attr in (
+        "name",
+        "model_name"
+    )
+)
 
 
 class XPLView():
@@ -682,7 +689,7 @@ class XPLFitInterface():
 
     def _make_peakview_columns(self):
         """Initializes columns. Must therefore be called in __init__."""
-        for attr, title in PEAK_TITLES.items():
+        for attr, title in PEAK_TV_TITLES.items():
             renderer = Gtk.CellRendererText(xalign=0)
             col_index = self._peak_model.get_col_index(attr)
             column = Gtk.TreeViewColumn(title, renderer, text=col_index)

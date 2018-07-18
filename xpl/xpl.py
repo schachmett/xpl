@@ -347,14 +347,16 @@ class XPL(Gtk.Application):
     def on_remove_peak(self, *_args):
         """Removes currently selected peak."""
         ID = self.view.get_active_peak()
-        self.dh.remove_peak(ID)
-        logger.info("removed peak with ID {}".format(ID))
+        if ID is not None:
+            self.dh.remove_peak(ID)
+            logger.info("removed peak with ID {}".format(ID))
 
     def on_clear_peaks(self, *_args):
         """Removes all peaks from selected region."""
         ID = self.view.get_active_region()
-        self.dh.clear_peaks(ID)
-        logger.info("removed all peaks from region with ID {}".format(ID))
+        if ID is not None:
+            self.dh.clear_peaks(ID)
+            logger.info("removed all peaks from region with ID {}".format(ID))
 
     def on_smoothen(self, widget, *_args):
         """Smoothen selected spectra by value from widget Gtk.Adjustment."""
