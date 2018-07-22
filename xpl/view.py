@@ -53,11 +53,17 @@ EXCLUDING_KEY = " (multiple)"
 PEAK_TITLES = OrderedDict({
     "ID": "ID",
     "name": "Name",
-    "model_name": "Model"
+    "model_name": "Model",
+    "fwhm": "FWHM",
+    "area": "Area",
+    "center": "Position"
 })
 PEAK_TV_TITLES = OrderedDict(
     (attr, PEAK_TITLES[attr]) for attr in (
         "name",
+        "center",
+        "area",
+        "fwhm",
         "model_name"
     )
 )
@@ -76,11 +82,15 @@ class XPLView():
         self.get_selected_spectra = self._tviface.get_selected_spectra
         self.get_active_spectra = self._cviface.get_active_spectra
         self.get_active_region = self._fitiface.get_active_region
-        self.get_active_peak = self._fitiface.get_active_peak
+        self.get_active_peak = self._fitiface.get_selected_peak
+
+        self.activate_region = self._fitiface.activate_region
+        self.activate_peak = self._fitiface.set_selected_peak
+
         self.filter_spectra = self._tviface.filter_treeview
         self.show_rsf = self._cviface.show_rsf
 
-    def activate(self, IDs):
+    def activate_spectra(self, IDs):
         """Plot only stuff with given IDs."""
         self._cviface.plot_only(IDs)
         specIDs = [ID for ID in IDs if self._dh.get(ID, "type") == "spectrum"]
@@ -335,12 +345,17 @@ class XPLCanvasInterface():
         # register callbacks into the data handler to reflect changes in
         # the meta data values or added/deleted spectra
         handlers = {
-            "changed-data": self._on_dh_data_changed,
             "removed-spectrum": self._on_dh_data_changed,
             "cleared-spectra": self._on_dh_data_changed,
+            "changed-spectrum": self._on_dh_data_changed,
             "added-region": self._on_dh_data_changed,
             "removed-region": self._on_dh_data_changed,
-            "cleared-regions": self._on_dh_data_changed
+            "cleared-regions": self._on_dh_data_changed,
+            "changed-region": self._on_dh_data_changed,
+            "added-peak": self._on_dh_data_changed,
+            "removed-peak": self._on_dh_data_changed,
+            "cleared-peaks": self._on_dh_data_changed,
+            "changed-peak": self._on_dh_data_changed
         }
         for signal, handler in handlers.items():
             self._dh.connect(signal, handler)
@@ -502,7 +517,17 @@ class XPLCanvasInterface():
 
     def _plot_peak(self, ID):
         """Plots a peak."""
-        pass
+        lineprops = {
+            "color": COLORS["peak"],
+            "linewidth": 1,
+            "linestyle": "--"
+        }
+        regionID = self._dh.parent(ID)
+        energy, background = self._dh.get_multiple(
+            regionID, "energy", "background")
+        fit_cps = self._dh.get(ID, "fit_cps")
+        self._ax.plot(energy, background + fit_cps, **lineprops)
+
 
     def _plot_rsfs(self, elements, source):
         """Plots RSF values for given elements with given X-ray souce."""
@@ -566,7 +591,8 @@ class XPLFitInterface():
             "cleared-regions": self._on_regions_cleared,
             "added-peak": self._on_peak_added,
             "removed-peak": self._on_peak_removed,
-            "cleared-peaks": self._on_peaks_cleared
+            "cleared-peaks": self._on_peaks_cleared,
+            "changed-peak": self._on_peak_changed,
         }
         for signal, handler in handlers.items():
             self._dh.connect(signal, handler)
@@ -581,17 +607,26 @@ class XPLFitInterface():
         # this class needs the active spectra for updating the widgets
         # correctly (this list is updated through activate_spectra)
         self._active_specIDs = []
+        self._active_region = None
+        self._active_peak = None
 
         self._make_peakview_columns()
 
     def get_active_region(self):
         """Returns the region that is currently selected or None."""
-        activeID = self._region_chooser.get_active_id()
-        if activeID is None:
-            return activeID
-        return int(activeID)
+        return self._active_region
+        # activeID = self._region_chooser.get_active_id()
+        # if activeID is None:
+        #     return activeID
+        # return int(activeID)
 
-    def get_active_peak(self):
+    def activate_region(self, regionID):
+        """Sets the active region."""
+        if regionID != self._active_region:
+            self._active_region = regionID
+            self._update_widgets()
+
+    def get_selected_peak(self):
         """Returns the peak that is currently selected or None."""
         peak_modelsort, pathlist = self._peak_selection.get_selected_rows()
         if not pathlist:
@@ -600,6 +635,17 @@ class XPLFitInterface():
         ID = int(peak_modelsort.get(iter_, 0)[0])
         logger.debug("get peakview selected ID: {}".format(ID))
         return ID
+
+    def set_selected_peak(self, peakID):
+        """Sets the active peak."""
+        if peakID != self._active_peak:
+            return
+        self._peak_selection.unselect_all()
+        for row in self._peak_model:
+            if int(row[0]) == peakID:
+                self._peak_selection.select_iter(row.iter)
+                break
+        self._active_peak = peakID
 
     def activate_spectra(self, IDs=None):
         """Reacts upon changing the active spectra by refilling the
@@ -610,9 +656,12 @@ class XPLFitInterface():
         self._region_chooser.remove_all()
         if len(IDs) == 1:
             child_IDs = self._dh.children(IDs[0])
+            if child_IDs:
+                self._active_region = child_IDs[0]
+            else:
+                self._active_region = None
             for ID in child_IDs:
                 self._region_chooser.append(str(ID), self._dh.get(ID, "name"))
-                self._region_chooser.set_active_id(str(child_IDs[0]))
         self._active_specIDs.clear()
         self._active_specIDs.extend(IDs)
         self._update_widgets()
@@ -623,6 +672,23 @@ class XPLFitInterface():
         regions_stack = self._builder.get_object("region_contentbox")
         peak_parambox = self._builder.get_object("peak_param_box")
 
+        regionID = self.get_active_region()
+
+        if self._peak_model.region != regionID:
+            self._on_peaks_cleared()
+            if regionID:
+                for new_peakID in self._dh.children(regionID):
+                    self._on_peak_added(new_peakID)
+            self._peak_model.region = regionID
+
+        rchooserID = self._region_chooser.get_active_id()
+        if rchooserID is not None:
+            rchooserID = int(rchooserID)
+        if regionID != rchooserID:
+            self._region_chooser.set_active_id(str(regionID))
+
+        peakID = self.get_selected_peak()
+
         regions_addbox.set_sensitive(len(self._active_specIDs) == 1)
         self._region_chooser.set_sensitive(
             len(self._active_specIDs) == 1
@@ -630,12 +696,12 @@ class XPLFitInterface():
             )
         regions_stack.set_sensitive(
             len(self._active_specIDs) == 1
-            and self.get_active_region() is not None
+            and regionID is not None
             )
         peak_parambox.set_sensitive(
             len(self._active_specIDs) == 1
-            and self.get_active_region() is not None
-            and self.get_active_peak() is not None
+            and regionID is not None
+            and peakID is not None
             )
 
     def _on_region_added(self, ID):
@@ -680,19 +746,40 @@ class XPLFitInterface():
         for row in self._peak_model:
             if int(row[0]) == ID:
                 self._peak_model.remove(row.iter)
-        logger.debug("removed peak with ID {} from treeview".format(ID))
+        logger.debug("removed peak {} from treeview".format(ID))
 
     def _on_peaks_cleared(self):
         """Removes all peaks from the model."""
         self._peak_model.clear()
         logger.debug("cleared all peaks from peakview")
 
+    def _on_peak_changed(self, ID, *_args):
+        """Updates the treeview for changed peak data."""
+        if ID == self.get_active_region():
+            for row in self._peak_model:
+                peakID = int(row[0])
+                attrs = ("center", "area", "fwhm")
+                idxs = [self._peak_model.get_col_index(attr) for attr in attrs]
+                values = [str(self._dh.get(peakID, attr)) for attr in attrs]
+                self._peak_model.set(row.iter, idxs, values)
+
     def _make_peakview_columns(self):
         """Initializes columns. Must therefore be called in __init__."""
+        def render_func(_col, renderer, model, iter_, data):
+            """Renders the the values so that numbers are rounded."""
+            attr, col_index = data
+            value = model.get_value(iter_, col_index)
+            if value.replace(".", "", 1).isdigit():
+                if attr == "area":
+                    value = str(int(float(value)))
+                else:
+                    value = "{:.2f}".format(float(value))
+            renderer.set_property("text", value)
         for attr, title in PEAK_TV_TITLES.items():
             renderer = Gtk.CellRendererText(xalign=0)
             col_index = self._peak_model.get_col_index(attr)
-            column = Gtk.TreeViewColumn(title, renderer, text=col_index)
+            column = Gtk.TreeViewColumn(title, renderer)
+            column.set_cell_data_func(renderer, render_func, (attr, col_index))
             column.set_sort_column_id(col_index)
             column.set_resizable(True)
             column.set_reorderable(True)

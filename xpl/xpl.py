@@ -11,6 +11,7 @@ import logging
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gio, GLib, Gdk
+import numpy as np
 
 from xpl import __appname__, __version__, __authors__, __config__, COLORS
 import xpl
@@ -165,7 +166,7 @@ class XPL(Gtk.Application):
         if not self.dh.altered:
             logger.debug("no need for saving, datahandler not altered")
             return True
-        if not len(self.dh): # pylint: disable=len-as-condition
+        if self.dh.isempty():
             logger.debug("no need for saving, datahandler empty")
             return True
         dialog = self.builder.get_object("save_confirmation_dialog")
@@ -319,8 +320,13 @@ class XPL(Gtk.Application):
             return
         def create_region(emin, emax):
             """Add region"""
-            ID = self.dh.add_region(IDs[0], emin=emin, emax=emax)
-            logger.info("added region with ID {}".format(ID))
+            ID = self.dh.add_region(
+                IDs[0],
+                emin=emin,
+                emax=emax
+            )
+            logger.info("added region {} to spectrum {}"
+                        "".format(ID, IDs[0]))
         rectprops = {"edgecolor": COLORS["region-vlines"], "linewidth": 2}
         plot_toolbar = self.builder.get_object("plot_toolbar")
         plot_toolbar.get_span(create_region, **rectprops)
@@ -340,9 +346,22 @@ class XPL(Gtk.Application):
 
     def on_add_peak(self, *_args):
         """Adds a peak to the currently active region."""
-        ID = self.view.get_active_region()
-        peakID = self.dh.add_peak(ID)
-        logger.info("added peak with ID {}".format(peakID))
+        regionID = self.view.get_active_region()
+        def create_peak(center, height, angle):
+            """Add peak"""
+            peakID = self.dh.add_peak(
+                regionID,
+                totalheight=height,
+                angle=angle,
+                center=center
+            )
+            logger.info("added peak {} to region {}".format(peakID, regionID))
+        wedgeprops = {
+            "edgecolor": COLORS["peak-wedge-edge"],
+            "facecolor": COLORS["peak-wedge-face"]
+        }
+        plot_toolbar = self.builder.get_object("plot_toolbar")
+        plot_toolbar.get_wedge(create_peak, **wedgeprops)
 
     def on_remove_peak(self, *_args):
         """Removes currently selected peak."""
@@ -385,7 +404,9 @@ class XPL(Gtk.Application):
 
     def on_fit(self, *_args):
         """Fits the current peaks."""
-        raise NotImplementedError
+        regionID = self.view.get_active_region()
+        if regionID:
+            self.dh.fit_region(regionID)
 
     def on_quit(self, *_args):
         """Quit program, write to config file."""
@@ -432,6 +453,8 @@ class XPLAppWindow(Gtk.ApplicationWindow):
                 self.on_search_spectrum_view,
             "on_spectrum_view_button_press_event":
                 self.on_spectrum_view_clicked,
+            "on_region_chooser_combo_changed":
+                self.on_region_chooser_changed
             }
         actions = {
             "about": self.on_about,
@@ -470,6 +493,13 @@ class XPLAppWindow(Gtk.ApplicationWindow):
         entry = self.builder.get_object("spectrum_view_search_entry")
         self.view.filter_spectra(combo.get_active_text(), entry.get_text())
 
+    def on_region_chooser_changed(self, combo):
+        """Sets chosen region in the view."""
+        regionID = combo.get_active_id()
+        if regionID is not None:
+            regionID = int(regionID)
+        self.view.activate_region(regionID)
+
     def on_spectrum_view_clicked(self, _treeview, event):
         """Callback for button-press-event, popups the menu on right click
         and calls show_selected for double left click. Return value
@@ -479,14 +509,14 @@ class XPLAppWindow(Gtk.ApplicationWindow):
         # pylint: disable=protected-access
         if event.type == Gdk.EventType._2BUTTON_PRESS and event.button == 1:
             IDs = self.view.get_selected_spectra()
-            self.view.activate(IDs)
+            self.view.activate_spectra(IDs)
             return True
         return False
 
     def on_show_selected_spectra(self, _widget, *_ignore):
         """Shows the spectra selected in the treeview in the canvas."""
         IDs = self.view.get_selected_spectra()
-        self.view.activate(IDs)
+        self.view.activate_spectra(IDs)
 
     def on_pan_plot(self, _widget, *_ignore):
         """Activates plot panning."""

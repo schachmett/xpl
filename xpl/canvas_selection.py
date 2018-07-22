@@ -22,7 +22,7 @@ class PeakSelector(_SelectorWidget):
             self, ax, onselect, useblit=useblit, button=button)
 
         if wedgeprops is None:
-            wedgeprops = dict(facecolor='red', alpha=0.5)
+            wedgeprops = dict(facecolor='red', alpha=0.5, fill=True)
 
         wedgeprops['animated'] = self.useblit
 
@@ -110,7 +110,7 @@ class PeakSelector(_SelectorWidget):
         amplitude = y0
 
         x, y = self._get_data(event)
-        angle = abs(np.rad2deg(np.arctan((x - x0) / (y - y0))))
+        angle = abs(np.arctan((x - x0) / (y - y0)))
 
         # TODO: control minamp, minfwhm stuff
 
@@ -127,9 +127,9 @@ class PeakSelector(_SelectorWidget):
             return True
         x0, y0, = self.pressv
 
-        angle = abs(np.rad2deg(np.arctan((x - x0) / (y - y0))))
-        self.wedge.set_theta1(-angle - 90)
-        self.wedge.set_theta2(angle - 90)
+        angle = abs(np.arctan((x - x0) / (y - y0)))
+        self.wedge.set_theta1(np.rad2deg(-angle) - 90)
+        self.wedge.set_theta2(np.rad2deg(angle) - 90)
 
         if self.onmove_callback is not None:
             center = x0

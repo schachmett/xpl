@@ -2,11 +2,13 @@
 filtering/sorting/selecting them."""
 # pylint: disable=wrong-import-position
 # pylint: disable=invalid-name
+# pylint: disable=logging-format-interpolation
+
+import logging
 
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Pango, Gdk
-
 from matplotlib.backends.backend_gtk3agg import (
     FigureCanvasGTK3Agg as FigureCanvas)
 from matplotlib.backends.backend_gtk3 import (
@@ -16,8 +18,10 @@ import numpy as np
 
 from xpl import COLORS
 from xpl.view import SPECTRUM_TITLES, EXCLUDING_KEY, PEAK_TITLES
-from xpl.canvas_selection import SpanSelector
+from xpl.canvas_selection import SpanSelector, PeakSelector
 
+
+logger = logging.getLogger(__name__)
 
 class XPLSpectrumTreeStore(Gtk.TreeStore):
     """A TreeModel that has methods for filling with spectrum info.
@@ -77,6 +81,7 @@ class XPLPeakTreeStore(Gtk.TreeStore):
     __gtype_name__ = "XPLPeakTreeStore"
     def __init__(self):
         self.titles = PEAK_TITLES
+        self.region = None
         types = [str] * len(self.titles)
         super().__init__(*types)
 
@@ -306,6 +311,13 @@ class XPLPlotToolbar(NavigationToolbar, Gtk.Toolbar):
             useblit=True
         )
         self.span_selector.active = False
+        self.peak_selector = PeakSelector(
+            self.canvas.figure.ax,
+            lambda *args: None,
+            peak_stays=False,
+            useblit=True
+        )
+        self.peak_selector.active = False
 
     def _init_toolbar(self):
         """Normally, this would create the buttons and connect them to
@@ -375,6 +387,53 @@ class XPLPlotToolbar(NavigationToolbar, Gtk.Toolbar):
         self.span_selector.onselect = on_selected
         self.span_selector.active = True
 
+    def get_wedge(self, callback, **kwargs):
+        """Gets a wegde and then calls callback(center, height, fwhm).
+        Also takes care of widgetlock and such."""
+        if self._idPress is not None:
+            self._idPress = self.canvas.mpl_disconnect(self._idPress)
+            self.mode = ""
+        if self._idRelease is not None:
+            self._idRelease = self.canvas.mpl_disconnect(self._idRelease)
+            self.mode = ""
+
+        mode = callback.__doc__
+
+        self.release_all_tools()
+        if self._active == mode:
+            self._active = None
+            self.mode = ""
+            self.peak_selector.active = False
+            self.set_message(self.mode)
+            return
+
+        self._active = mode
+        self.mode = mode
+        self.canvas.widgetlock(self.peak_selector)
+        for a in self.canvas.figure.get_axes():
+            a.set_navigate_mode(None)
+        self.set_message(self.mode)
+
+        def on_selected(center, height, angle):
+            """Callback caller."""
+            self._active = None
+            self.mode = ""
+            self.peak_selector.active = False
+            self.release_all_tools()
+            self.set_message(self.mode)
+            callback(center, height, angle)
+        wedgeprops = {
+            "alpha": 0.5,
+            "fill": True,
+            "edgecolor": "black",
+            "linewidth": 1,
+            "linestyle": "-"
+        }
+        wedgeprops.update(kwargs)
+        self.peak_selector.set_wedgeprops(wedgeprops)
+        self.peak_selector.onselect = on_selected
+        self.peak_selector.active = True
+
     def pan(self, *_ignore):
         """Activate the pan/zoom tool. pan with left button, zoom with right
         OVERWRITE because of widgetlock release."""
@@ -439,7 +498,10 @@ class XPLPlotToolbar(NavigationToolbar, Gtk.Toolbar):
         try:
             self.canvas.widgetlock.release(self)
         except ValueError:
-            self.canvas.widgetlock.release(self.span_selector)
+            try:
+                self.canvas.widgetlock.release(self.span_selector)
+            except ValueError:
+                self.canvas.widgetlock.release(self.peak_selector)
 
     def set_cursor(self, cursor):
         self.canvas.get_property("window").set_cursor(self.cursord[cursor])

@@ -26,6 +26,9 @@ COLORS = {
     "spectrum": "#B5C689",
     "region-vlines": "#F58B4C",
     "region-background": "#F58B4C",
+    "peak": "#C0C0C0",
+    "peak-wedge-edge": "#FA8072",
+    "peak-wedge-face": "#FA8072",
     "rsf-annotation": "#AAAAAA",
     "rsf-vlines": ["#468CDE", "#52D273", "#E94F64", "#E57254", "#E8C454"]
 }

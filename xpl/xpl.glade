@@ -606,6 +606,7 @@
                             <property name="halign">start</property>
                             <property name="margin_left">5</property>
                             <property name="margin_right">5</property>
+                            <signal name="changed" handler="on_region_chooser_combo_changed" swapped="no"/>
                           </object>
                           <packing>
                             <property name="expand">False</property>
