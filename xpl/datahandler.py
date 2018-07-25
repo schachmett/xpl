@@ -48,7 +48,7 @@ class BaseDataHandler(object):
     def emit_init_ready(self):
         """Emits cleared-spectra so that views refresh the first time
         at application startup."""
-        self._emit("cleared-spectra")
+        self._emit("cleared-spectra", None)
 
     def get(self, ID, attr=None):
         """Gets attribute attr of object with ID."""
@@ -264,8 +264,12 @@ class DataHandler(BaseDataHandler):
         """Removes all spectra."""
         for spectrum in self._spectra:
             self._idbook.pop(spectrum.ID)
+            for region in spectrum.regions:
+                self._idbook.pop(region.ID)
+                for peak in region.peaks:
+                    self._idbook.pop(peak.ID)
         self._spectra.clear()
-        self._emit("cleared-spectra")
+        self._emit("cleared-spectra", None)
         self.altered = False
 
     def add_region(self, spectrumID, **regiondict):
@@ -295,6 +299,8 @@ class DataHandler(BaseDataHandler):
         spectrum = self._idbook[spectrumID]
         for region in spectrum.regions:
             self._idbook.pop(region.ID)
+            for peak in region.peaks:
+                self._idbook.pop(peak.ID)
         spectrum.clear_regions()
         self._emit("cleared-regions", spectrumID)
         self.altered = True

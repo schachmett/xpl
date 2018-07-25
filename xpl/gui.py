@@ -206,13 +206,13 @@ class XPLFigure(Figure):
         updated by update_xy."""
         self._xy = [np.inf, -np.inf, np.inf, -np.inf]
 
-    def update_xy_centerlims(self, xmin, xmax, _ymin, ymax):
+    def update_xy_centerlims(self, xmin, xmax, ymin, ymax):
         """Updates self._xy where min values are only assumed when they
         are lower than the current min. Analogous for max values."""
         self._xy = [
             min(self._xy[0], xmin),
             max(self._xy[1], xmax),
-            0,          # min(self._xy[2], ymin),
+            min(self._xy[2], ymin),
             max(self._xy[3], ymax)
         ]
 
@@ -236,11 +236,15 @@ class XPLFigure(Figure):
             raise KeyError("key {} not in figure xy buffer".format(keyword))
         if np.all(np.isfinite(self._xy_buffer[keyword])):
             xmin, xmax, ymin, ymax = self._xy_buffer[keyword]
+            if np.all(np.isfinite(self._xy)) and (
+                    ymin > self._xy[3] or ymax < self._xy[2]):
+                self.center_view()
+                return
             self.ax.set_xlim(xmax, xmin)
             self.ax.set_ylim(ymin, ymax)
             self.set_ticks()
         else:
-            logger.warning("xylims not properly adjusted")
+            self.restore_xylims()
 
     def isstored(self, keyword):
         """Returns if the keyword is already known."""
@@ -249,8 +253,15 @@ class XPLFigure(Figure):
     def center_view(self, keyword="default"):
         """Focuses view on current plot."""
         if np.all(np.isfinite(self._xy)):
-            self._xy_buffer[keyword] = self._xy
-        logger.warning("xylims not properly adjusted")
+            bordered_center = [
+                self._xy[0] - (self._xy[1] - self._xy[0]) * 0.02,
+                self._xy[1] + (self._xy[1] - self._xy[0]) * 0.02,
+                0,
+                self._xy[3] * 1.1
+            ]
+            self._xy_buffer[keyword] = bordered_center
+        else:
+            logger.warning("xylims not properly adjusted")
         self.restore_xylims(keyword)
 
     def set_ticks(self):

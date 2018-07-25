@@ -187,6 +187,7 @@ class XPL(Gtk.Application):
         sure."""
         really_do_it = self.ask_for_save()
         if really_do_it:
+            self.view.activate_spectra([])
             self.dh.clear_spectra()
             self.win.set_title("{} - {}".format(__appname__, "Untitled"))
             __config__.set("io", "project_file", "None")

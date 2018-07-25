@@ -106,11 +106,14 @@ class XPLView():
 
     def activate_spectra(self, spectrumIDs):
         """Plot only spectra with ID in spectrumIDs."""
-        for spectrumID in spectrumIDs:
-            assert self._dh.isspectrum(spectrumID)
-        self._cviface.store_xylims()
-        ActiveIDs.SPECTRA = spectrumIDs
-        self._tviface.activate_spectra(spectrumIDs)
+        if not spectrumIDs:
+            ActiveIDs.SPECTRA = []
+        else:
+            for spectrumID in spectrumIDs:
+                assert self._dh.isspectrum(spectrumID)
+            self._cviface.store_xylims()
+            ActiveIDs.SPECTRA = spectrumIDs
+            self._tviface.activate_spectra(spectrumIDs)
         self._fitiface.activate_spectra(spectrumIDs)
         self._cviface.plot_only(spectrumIDs)
         self._revert_adjustment_widgets()
@@ -345,7 +348,7 @@ class XPLTreeViewInterface():
         logger.debug("spectrumview: updated spectrum {}, attr '{}' is now '{}'"
                      "".format(spectrumID, attr, value))
 
-    def _on_spectra_cleared(self):
+    def _on_spectra_cleared(self, _none):
         """Removes all spectra from the model."""
         self._treemodel.clear()
         logger.debug("spectrumview: cleared all spectra")
@@ -514,10 +517,10 @@ class XPLCanvasInterface():
 
         erange = max(energy) - min(energy)
         self._fig.update_xy_centerlims(
-            min(energy) - erange * 0.02,
-            max(energy) + erange * 0.02,
-            0,
-            max(cps) * 1.1
+            min(energy),
+            max(energy),
+            min(cps),
+            max(cps)
         )
 
     def _plot_region(self, regionID):
@@ -708,14 +711,11 @@ class XPLFitInterface():
 
         self._make_peakview_columns()
 
-    def activate_spectra(self, spectrumIDs=None):
+    def activate_spectra(self, spectrumIDs):
         """Reacts upon changing the active spectra by refilling the
         region_chooser and updating the widgets. Always
         either calls activate_region() or _update_widgets()."""
         logger.debug("regionview: activate spectra {}".format(spectrumIDs))
-        if spectrumIDs is None:
-            self._update_widgets()
-            return
         self._region_chooser.remove_all()
         if len(spectrumIDs) == 1:
             regionIDs = self._dh.children(spectrumIDs[0])
@@ -727,7 +727,7 @@ class XPLFitInterface():
             else:
                 self.activate_region(None)
         else:
-            self._update_widgets()
+            self.activate_region(None)
 
     def activate_region(self, regionID):
         """Sets the active region. Always either calls activate_peak() or
@@ -739,7 +739,6 @@ class XPLFitInterface():
 
         rchooserID = self._region_chooser.get_active_id()
         if str(regionID) != rchooserID:
-
             self._region_chooser.set_active_id(str(regionID))
         logger.debug("regionview: activated region {}".format(regionID))
 
@@ -889,8 +888,8 @@ class XPLFitInterface():
                     self.activate_peak(None)
                 logger.debug("peakview: removed peak {}".format(peakID))
                 return
-        raise TypeError("peakview: non-existent ID {} cannot be removed"
-                        "".format(peakID))
+        raise logger.warning("peakview: not shown peak {} cannot be removed"
+                             "".format(peakID))
 
     def _on_peak_changed(self, peakID, attr):
         """Refreshes peak param column."""
