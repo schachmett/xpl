@@ -8,6 +8,7 @@ defined in these spectra and peak models for fitting in these regions."""
 import weakref
 import copy
 import logging
+from string import ascii_uppercase
 
 import numpy as np
 
@@ -32,6 +33,7 @@ class BaseDataHandler(object):
         "removed-region",
         "cleared-regions",
         "changed-region",
+        "fit-region",
         "added-peak",
         "removed-peak",
         "cleared-peaks",
@@ -43,18 +45,35 @@ class BaseDataHandler(object):
         self._idbook = XPLContainer.idbook
         self._observers = dict((signal, []) for signal in self.signals)
 
+    def emit_init_ready(self):
+        """Emits cleared-spectra so that views refresh the first time
+        at application startup."""
+        self._emit("cleared-spectra")
+
+    def get(self, ID, attr=None):
+        """Gets attribute attr of object with ID."""
+        cont = self._idbook[ID]
+        if attr is None:
+            return str(cont)
+        return cont.get(attr)
+
+    def get_multiple(self, ID, *attrs):
+        """Gets attributes attrs of object with ID."""
+        cont = self._idbook[ID]
+        return cont.get_multiple(attrs)
+
     def children(self, ID):
         """Returns ID list of children of ID."""
-        IDs = []
+        if ID is None:
+            return [spectrum.ID for spectrum in self._spectra]
         cont = self._idbook[ID]
         if cont.type == "spectrum":
-            IDs.extend([region.ID for region in cont.regions])
-            # for region in cont.regions:
-            #     IDs.append(region.ID)
-            #     IDs.extend([peak.ID for peak in region.peaks])
+            return [region.ID for region in cont.regions]
         elif cont.type == "region":
-            IDs.extend([peak.ID for peak in cont.peaks])
-        return IDs
+            return [peak.ID for peak in cont.peaks]
+        elif cont.type == "peak":
+            return []
+        raise TypeError("ID {} not valid".format(ID))
 
     def parent(self, ID):
         """Returns parent ID."""
@@ -65,7 +84,19 @@ class BaseDataHandler(object):
             return cont.region.ID
         return None
 
-    def ID_exists(self, ID):
+    def isspectrum(self, ID):
+        """Tests whether ID belongs to spectrum."""
+        return self.get(ID, "type") == "spectrum"
+
+    def isregion(self, ID):
+        """Tests whether ID belongs to region."""
+        return self.get(ID, "type") == "region"
+
+    def ispeak(self, ID):
+        """Tests whether ID belongs to spectrum."""
+        return self.get(ID, "type") == "peak"
+
+    def exists(self, ID):
         """Returns True if ID exists."""
         return ID in self._idbook
 
@@ -74,7 +105,6 @@ class BaseDataHandler(object):
         try:
             self._observers[signal].append(func)
         except KeyError:
-            logger.error("Signal {} does not exist".format(signal))
             raise
 
     def disconnect(self, signal, func):
@@ -93,6 +123,20 @@ class BaseDataHandler(object):
         """Returns True if self._spectra is empty."""
         return not self._spectra
 
+    def by_attr(self, **kwargs):
+        """Returns list of ContainerIDs by searching through attributes."""
+        IDs = []
+        for ID, cont in self._idbook.items():
+            for attr, value in kwargs.items():
+                try:
+                    if cont.get(attr) != value:
+                        break
+                except AttributeError:
+                    break
+            else:
+                IDs.append(ID)
+        return IDs
+
 
 class DataHandler(BaseDataHandler):
     """A DataHandler internally manages Spectrum, Region and Peak objects
@@ -101,170 +145,55 @@ class DataHandler(BaseDataHandler):
         super().__init__()
         self.altered = False
 
-    def get(self, ID, attr=None):
-        """Gets attribute attr of object with ID."""
-        cont = self._idbook[ID]
-        if attr is None:
-            return str(cont)
-        return cont.get(attr)
+    def fit_region(self, regionID):
+        """Fits peaks in a given region to the cps."""
+        assert self.isregion(regionID)
+        self._idbook[regionID].fit()
+        self._emit("fit-region", regionID)
+        self.altered = True
 
-    def get_multiple(self, ID, *attrs):
-        """Gets attributes attrs of object with ID."""
-        cont = self._idbook[ID]
-        return cont.get_multiple(attrs)
-
-    def manipulate_region(self, ID, **newdict):
-        """Sets the attribute attr of container with ID."""
-        region = self._idbook[ID]
-        for attr, value in newdict.items():
-            if attr not in ("emin", "emax", "bgtype"):
-                logger.warning("attribute {} can not be changed through"
-                               "DataHandler.manipulate_region()".format(attr))
-                continue
-            if not self.get(ID, attr) == value:
-                region.set(attr, value)
-                self._emit("changed-region", ID)
-                self.altered = True
-
-    def manipulate_spectrum(self, ID, **newdict):
+    def manipulate_spectrum(self, spectrumID, **newdict):
         """Manipulates data that leads to recalculation of other data or
         direct need for replotting."""
-        spectrum = self._idbook[ID]
+        assert self.isspectrum(spectrumID)
+        spectrum = self._idbook[spectrumID]
         for attr, value in newdict.items():
             if attr not in ("calibration", "norm", "smoothness"):
                 logger.warning("attribute {} can not be changed through"
                                "DataHandler.manipulate_spectrum()"
                                "".format(attr))
                 continue
-            if not self.get(ID, attr) == value:
+            if not self.get(spectrumID, attr) == value:
                 spectrum.set(attr, value)
                 self.altered = True
-                self._emit("changed-spectrum", ID, attr)
+                self._emit("changed-spectrum", spectrumID, attr)
 
-    def add_spectrum(self, specdict):
-        """Adds a spectrum from a dictionary defining its attributes."""
-        spectrum = Spectrum(specdict)
-        self._spectra.append(spectrum)
-        self.altered = True
-        self._emit("added-spectrum", spectrum.ID)
-        return spectrum.ID
-
-    def remove_spectrum(self, ID):
-        """Removes spectrum that is identified by ID."""
-        if self.get(ID, "type") != "spectrum":
-            logger.error("object with ID {} is no spectrum".format(ID))
-            raise TypeError
-        self._emit("removed-spectrum", ID)
-        self.altered = True
-        self._spectra.remove(self._idbook[ID])
-
-    def amend_spectrum(self, ID, newdict):
-        """Changes values of a spectrum."""
-        if self.get(ID, "type") != "spectrum":
-            logger.error("object with ID {} is no spectrum".format(ID))
-            raise TypeError
-        if "raw_sweeps" in newdict or "raw_dwelltime" in newdict:
-            newdict["int_time"] = str(
-                int(newdict.get("raw_sweeps", self.get(ID, "raw_sweeps")))
-                * float(newdict.get("raw_dwelltime",
-                                    self.get(ID, "raw_dwelltime")))
-            )
-
-        self._emit("amended-spectrum", ID, newdict)
-
-        spectrum = self._idbook[ID]
+    def manipulate_region(self, regionID, **newdict):
+        """Sets the attribute attr of container with ID."""
+        assert self.isregion(regionID)
+        region = self._idbook[regionID]
         for attr, value in newdict.items():
-            if attr == "ID":
+            if attr not in ("emin", "emax", "bgtype"):
+                logger.warning("attribute {} can not be changed through"
+                               "DataHandler.manipulate_region()".format(attr))
                 continue
-            if attr in ("int_time", "raw_dwelltime", "pass_energy"):
-                value = float(value)
-            elif attr in ("raw_sweeps", "eis_region"):
-                value = int(value)
-            if not self.get(ID, attr) == value:
-                spectrum.set(attr, value)
+            if not self.get(regionID, attr) == value:
+                region.set(attr, value)
+                self._emit("changed-region", regionID, attr)
                 self.altered = True
-                if attr in ("int_time",):
-                    self._emit("changed-spectrum", ID)
 
-    def clear_spectra(self):
-        """Removes all spectra."""
-        self.altered = False
-        self._spectra.clear()
-        self._emit("cleared-spectra")
+    def constrain_peak(self, peakID, attr, **constraints):
+        """Sets constrains for a peak."""
+        assert self.ispeak(peakID)
+        peak = self._idbook[peakID]
+        peak.set_constraints(attr, **constraints)
+        self._emit("changed-peak", peakID, attr)
 
-    def add_region(self, ID, **regiondict):
-        """Adds a region to spectrum with ID."""
-        if self.get(ID, "type") != "spectrum":
-            logger.error("object with ID {} is no spectrum".format(ID))
-            raise TypeError
-        spectrum = self._idbook[ID]
-        regiondict["spectrum"] = spectrum
-        # region = Region(regiondict)
-        regionID = spectrum.add_region(regiondict)
-        self._emit("added-region", regionID)
-        self.altered = True
-        return regionID
-
-    def remove_region(self, ID):
-        """Removes a region."""
-        if self.get(ID, "type") != "region":
-            logger.error("object with ID {} is no region".format(ID))
-            raise TypeError
-        region = self._idbook[ID]
-        region.spectrum.regions.remove(region)
-        del region
-        self._emit("removed-region", ID)
-        self.altered = True
-
-    def clear_regions(self, ID):
-        """Clears regions of spectrum with ID."""
-        if self.get(ID, "type") != "spectrum":
-            logger.error("object with ID {} is no spectrum".format(ID))
-            raise TypeError
-        self._idbook[ID].regions.clear()
-        self._emit("cleared-regions", ID)
-        self.altered = True
-
-    def add_peak(self, ID, **peakdict):
-        """Adds a peak to region with ID."""
-        if self.get(ID, "type") != "region":
-            logger.error("object with ID {} is no region".format(ID))
-            raise TypeError
-        region = self._idbook[ID]
-        peakdict["region"] = region
-        peakID = region.add_peak(peakdict)
-        self._emit("added-peak", peakID)
-        self.altered = True
-        return peakID
-
-    def remove_peak(self, ID):
-        """Removes a peak."""
-        if self.get(ID, "type") != "peak":
-            logger.error("object with ID {} is no peak".format(ID))
-            raise TypeError
-        peak = self._idbook[ID]
-        peak.region.remove_peak(peak)
-        del peak
-        self._emit("removed-peak", ID)
-        self.altered = True
-
-    def clear_peaks(self, ID):
-        """Clears regions of spectrum with ID."""
-        if self.get(ID, "type") != "region":
-            logger.error("object with ID {} is no region".format(ID))
-            raise TypeError
-        self._idbook[ID].clear_peaks()
-        self._emit("cleared-peaks", ID)
-        self.altered = True
-
-    def fit_region(self, regionID):
-        """Fits peaks in a given region to the cps."""
-        if self.get(regionID, "type") != "region":
-            logger.error("object with ID {} is no region".format(regionID))
-            raise TypeError
-        self._idbook[regionID].fit()
-        self._emit("changed-peak", regionID)
-        self.altered = True
+    def get_peak_constraints(self, peakID, attr):
+        """Gets constraints from a peak."""
+        assert self.ispeak(peakID)
+        peak = self._idbook[peakID]
+        return peak.get_constraints(attr)
 
     def load(self, spectra):
         """Loads spectra after deleting all contents."""
@@ -272,6 +201,10 @@ class DataHandler(BaseDataHandler):
         for spectrum in spectra:
             spectrum.new_ID()
             self._spectra.append(spectrum)
+            for region in spectrum.regions:
+                region.new_ID()
+                for peak in region.peaks:
+                    peak.new_ID()
             self._emit("added-spectrum", spectrum.ID)
         self.altered = False
 
@@ -280,16 +213,119 @@ class DataHandler(BaseDataHandler):
         self.altered = False
         return self._spectra
 
-    # def by_attr(self, **kwargs):
-    #     """Returns list of ContainerIDs by searching through attributes."""
-    #     IDs = []
-    #     for ID, cont in self._idbook.items():
-    #         for attr, value in kwargs.items():
-    #             if cont.get(attr) != value:
-    #                 break
-    #         else:
-    #             IDs.append(ID)
-    #     return IDs
+    def add_spectrum(self, **specdict):
+        """Adds a spectrum from a dictionary defining its attributes."""
+        spectrum = Spectrum(**specdict)
+        self._spectra.append(spectrum)
+        self._emit("added-spectrum", spectrum.ID)
+        self.altered = True
+        return spectrum.ID
+
+    def remove_spectrum(self, spectrumID):
+        """Removes spectrum that is identified by ID."""
+        assert self.isspectrum(spectrumID)
+        spectrum = self._idbook.pop(spectrumID)
+        for region in spectrum.regions:
+            self._idbook.pop(region.ID)
+        spectrum.clear_regions()
+        self._spectra.remove(spectrum)
+        self._emit("removed-spectrum", spectrumID)
+        self.altered = True
+
+    def amend_spectrum(self, spectrumID, **newdict):
+        """Changes values of a spectrum."""
+        assert self.isspectrum(spectrumID)
+
+        if "raw_sweeps" in newdict or "raw_dwelltime" in newdict:
+            newdict["int_time"] = str(
+                int(newdict.get("raw_sweeps",
+                                self.get(spectrumID, "raw_sweeps")))
+                * float(newdict.get("raw_dwelltime",
+                                    self.get(spectrumID, "raw_dwelltime")))
+            )
+        spectrum = self._idbook[spectrumID]
+        for attr, value in newdict.items():
+            if attr == "spectrumID":
+                continue
+            if attr in ("calibration", "norm", "smoothness"):
+                logger.error("attribute {} can not be changed through"
+                             "DataHandler.amend_spectrum()".format(attr))
+                continue
+            elif attr in ("int_time", "raw_dwelltime", "pass_energy"):
+                value = float(value)
+            elif attr in ("raw_sweeps", "eis_region"):
+                value = int(value)
+            if not self.get(spectrumID, attr) == value:
+                spectrum.set(attr, value)
+                self._emit("changed-spectrum", spectrumID, attr)
+                self.altered = True
+
+    def clear_spectra(self):
+        """Removes all spectra."""
+        for spectrum in self._spectra:
+            self._idbook.pop(spectrum.ID)
+        self._spectra.clear()
+        self._emit("cleared-spectra")
+        self.altered = False
+
+    def add_region(self, spectrumID, **regiondict):
+        """Adds a region to spectrum with ID."""
+        assert self.isspectrum(spectrumID)
+        spectrum = self._idbook[spectrumID]
+        regiondict["spectrum"] = spectrum
+        regionID = spectrum.add_region(**regiondict)
+        self._emit("added-region", regionID)
+        self.altered = True
+        return regionID
+
+    def remove_region(self, regionID):
+        """Removes a region."""
+        assert self.isregion(regionID)
+        region = self._idbook.pop(regionID)
+        for peak in region.peaks:
+            self._idbook.pop(peak.ID)
+        region.clear_peaks()
+        region.spectrum.remove_region(region)
+        self._emit("removed-region", regionID)
+        self.altered = True
+
+    def clear_regions(self, spectrumID):
+        """Clears regions of spectrum with ID."""
+        assert self.isspectrum(spectrumID)
+        spectrum = self._idbook[spectrumID]
+        for region in spectrum.regions:
+            self._idbook.pop(region.ID)
+        spectrum.clear_regions()
+        self._emit("cleared-regions", spectrumID)
+        self.altered = True
+
+    def add_peak(self, regionID, **peakdict):
+        """Adds a peak to region with ID."""
+        assert self.isregion(regionID)
+        region = self._idbook[regionID]
+        peakdict["region"] = region
+        peakID = region.add_peak(**peakdict)
+        self._emit("added-peak", peakID)
+        self.altered = True
+        return peakID
+
+    def remove_peak(self, peakID):
+        """Removes a peak."""
+        assert self.ispeak(peakID)
+        peak = self._idbook.pop(peakID)
+        peak.region.remove_peak(peak)
+        self._emit("removed-peak", peakID)
+        self.altered = True
+
+    def clear_peaks(self, regionID):
+        """Clears regions of spectrum with ID."""
+        assert self.isregion(regionID)
+        region = self._idbook[regionID]
+        for peak in region.peaks:
+            self._idbook.pop(peak.ID)
+        region.clear_peaks()
+        self._emit("cleared-peaks", regionID)
+        self.altered = True
 
 
 class XPLContainer(object):
@@ -300,7 +336,7 @@ class XPLContainer(object):
     _newID = 0
     idbook = weakref.WeakValueDictionary({})
 
-    def __init__(self, attrdict):
+    def __init__(self, **attrdict):
         for attr in self._required:
             if attr not in attrdict:
                 raise ValueError("Attribute '{}' missing".format(attr))
@@ -329,9 +365,7 @@ class XPLContainer(object):
             try:
                 self.specdict_additional[attr] = value
             except KeyError:
-                logger.error("Object {} has no attribute {}"
-                             "".format(self.type, attr))
-                raise
+                raise AttributeError
 
     def get(self, attr):
         """Gets attribute value. If the attribute does not exist, None is
@@ -342,7 +376,7 @@ class XPLContainer(object):
             try:
                 return self.specdict_additional[attr]
             except KeyError:
-                raise
+                raise AttributeError
 
     def get_multiple(self, attrs):
         """Gets attribute value. If the attribute does not exist, None is
@@ -393,10 +427,10 @@ class XPLContainer(object):
         return "".join(strlist)
 
 
-# pylint: disable=no-member
-
 class Spectrum(XPLContainer):
     """A spectrum container."""
+    # pylint: disable=no-member
+    # pylint: disable=access-member-before-definition
     _required = ("energy", "cps")
     _defaults = {
         "name": "",
@@ -406,10 +440,12 @@ class Spectrum(XPLContainer):
         "pass_energy": 0
     }
 
-    def __init__(self, specdict):
+    def __init__(self, **specdict):
         specdict["parent"] = None
-        super().__init__(specdict)
+        super().__init__(**specdict)
         self.type = "spectrum"
+        if not self.name:
+            self.name = "EIS Region {}".format(self.get("eis_region"))
 
         self._raw_energy = specdict["energy"]
         self.energy_c = copy.deepcopy(self._raw_energy)
@@ -431,21 +467,6 @@ class Spectrum(XPLContainer):
         super().set(attr, value)
         if attr in ("smoothness", "calibration", "norm", "int_time"):
             self.calculate_cps()
-
-    def add_region(self, regiondict):
-        """Adds Region region to this spectrum."""
-        region = Region(regiondict)
-        self.regions.append(region)
-        self.region_number += 1
-        return region.ID
-
-    def remove_region(self, region):
-        """Removes Region region from this spectrum."""
-        self.regions.remove(region)
-
-    def clear_regions(self):
-        """Removes all Regions from this spectrum."""
-        self.regions.clear()
 
     def get_energy_at_maximum(self, span):
         """Returns energy value at the maximum intensity point in span, which
@@ -471,17 +492,33 @@ class Spectrum(XPLContainer):
             self.cps = self.cps_c
         self.energy = self.energy_c
 
+    def add_region(self, **regiondict):
+        """Adds Region region to this spectrum."""
+        region = Region(**regiondict)
+        self.regions.append(region)
+        self.region_number += 1
+        return region.ID
+
+    def remove_region(self, region):
+        """Removes Region region from this spectrum."""
+        self.regions.remove(region)
+
+    def clear_regions(self):
+        """Removes all Regions from this spectrum."""
+        self.regions.clear()
+
 
 class Region(XPLContainer):
     """A region container."""
+    # pylint: disable=no-member
     bgtypes = ("none", "shirley", "linear")
     _required = ("spectrum", "emin", "emax")
     _defaults = {
         "name": ""
     }
 
-    def __init__(self, regiondict):
-        super().__init__(regiondict)
+    def __init__(self, **regiondict):
+        super().__init__(**regiondict)
         self.type = "region"
 
         self.spectrum = regiondict["spectrum"]
@@ -497,7 +534,7 @@ class Region(XPLContainer):
         self.calculate_bg(self.bgtype)
 
         self.peaks = []
-        self.peak_number = 0
+        self.peak_number = 1
         self.model = RegionFitModelIface(self)
         self.fit_all = None
 
@@ -530,6 +567,20 @@ class Region(XPLContainer):
             return self.eminmax[1]
         return super().get(attr)
 
+    def get_peak_by_label(self, peaklabel):
+        """Returns the peak corresponding to peaklabel."""
+        for peak in self.peaks:
+            if peak.label == peaklabel:
+                return peak
+        return None
+
+    def get_peak_by_prefix(self, peakprefix):
+        """Returns the peak corresponding to peak.prefix."""
+        for peak in self.peaks:
+            if peak.prefix == peakprefix:
+                return peak
+        return None
+
     def calculate_bg(self, bgtype):
         """Calculates a self.background."""
         if bgtype not in self.bgtypes:
@@ -546,7 +597,7 @@ class Region(XPLContainer):
         """Fetches the evaluation of the total model from ModelIface."""
         return self.model.get_cps()
 
-    def add_peak(self, peakdict):
+    def add_peak(self, **peakdict):
         """Adds Peak peak to this region."""
         if "totalheight" in peakdict:
             bg_at_center = self.background[
@@ -557,7 +608,7 @@ class Region(XPLContainer):
             fwhm = np.tan(peakdict.pop("angle")) * peakdict["height"]
             peakdict["fwhm"] = fwhm
 
-        peak = Peak(peakdict)
+        peak = Peak(**peakdict)
         self.peaks.append(peak)
         self.model.add_peak(peak)
         self.peak_number += 1
@@ -577,8 +628,8 @@ class Region(XPLContainer):
 
 class Peak(XPLContainer):
     """A peak container."""
+    # pylint: disable=no-member
     # pylint: disable=attribute-defined-outside-init
-    peaknames = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     _required = ("region",)
     _defaults = {
         "name": "",
@@ -589,24 +640,24 @@ class Peak(XPLContainer):
         "center": None
     }
 
-    def __init__(self, peakdict):
+    def __init__(self, **peakdict):
         if "height" in peakdict:
             height = peakdict.pop("height")
             peakdict["_height"] = height
         if "area" in peakdict:
             area = peakdict.pop("area")
             peakdict["_area"] = area
-        super().__init__(peakdict)
+        super().__init__(**peakdict)
         self.type = "peak"
 
         self.region = peakdict["region"]
-
         self._constraints = []
         self.prefix = "p{}_".format(self.ID)
+        self.label = "P{}".format(self.region.peak_number)
 
         if "name" not in peakdict:
             self.name = "Peak {}".format(
-                self.peaknames[self.region.peak_number])
+                ascii_uppercase[self.region.peak_number])
 
         self.model = self.region.model
         if None in (self.height, self.area, self.fwhm, self.center):
@@ -618,6 +669,44 @@ class Peak(XPLContainer):
                 area=self.area,
                 center=self.center
             )
+
+    def set(self, attr, value):
+        """Overload set for some special attributes. (setter
+        for DataHandler)"""
+        super().set(attr, value)
+        if attr == "model_name":
+            pass
+        if attr in ("fwhm", "area", "center"):
+            pass
+            # self.model.init_params(
+            #     self,
+            #     fwhm=self.fwhm,
+            #     area=self.area,
+            #     center=self.center
+            # )
+
+    def set_params_from_model(self, **kwargs):
+        """Setter for peak paramaters to use from the fitting interface."""
+        for key, value in kwargs.items():
+            if key not in ("height", "area", "center", "fwhm"):
+                raise AttributeError("model can only change peak parameters")
+            self.set(key, value)
+
+    def set_constraints(self, param, **constraints):
+        """Adds the constraints written in the dict constraints."""
+        constraints = {k: v for k, v in constraints.items() if v is not None}
+        value = None
+        vary = True
+        min_ = constraints.get("min_", 0)
+        max_ = constraints.get("max_", np.inf)
+        expr = constraints.get("expr", "")
+        self.model.set_constraints(self, param, value, vary, min_, max_, expr)
+        logger.info("set peak {} '{}' constraints: min={}, max={}, expr={}"
+                    "".format(self.ID, param, min_, max_, expr))
+
+    def get_constraints(self, attr):
+        """Returns a dictionary containing the constraints."""
+        return self.model.get_constraints(self, attr)
 
     @property
     def area(self):
@@ -670,28 +759,12 @@ class Peak(XPLContainer):
         """Fetches peak cps from the ModelIface."""
         return self.model.get_peak_cps(self)
 
-    def set_params_from_model(self, **kwargs):
-        """Setter for peak paramaters to use from the fitting interface."""
-        for key, value in kwargs.items():
-            if key not in ("height", "area", "center", "fwhm"):
-                raise AttributeError("model can only change peak parameters")
-            setattr(self, key, value)
+    @property
+    def energy(self):
+        """Returns energy vector from region."""
+        return self.region.energy
 
-    def set(self, attr, value):
-        """Overload set for some special attributes. (setter
-        for DataHandler)"""
-        super().set(attr, value)
-        if attr == "model_name":
-            pass
-        if attr in ("fwhm", "area", "center"):
-            pass
-            # self.model.init_params(
-            #     self,
-            #     fwhm=self.fwhm,
-            #     area=self.area,
-            #     center=self.center
-            # )
-
-    def add_constraints(self, constraints):
-        """Adds the constraints written in the tuple constraints."""
-        pass
+    @property
+    def background(self):
+        """Returns background vector from region."""
+        return self.region.background

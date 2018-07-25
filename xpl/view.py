@@ -8,21 +8,21 @@ the DataHandler from xpl.datahandler."""
 from collections import OrderedDict
 import re
 import logging
-import os
 
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Pango
+import numpy as np
 
 from xpl.fileio import RSFHandler
 from xpl.canvas_selection import DraggableAttributeLine
-from xpl import __config__, COLORS
+from xpl import __colors__, RSF_DB_PATH
 
 
 logger = logging.getLogger(__name__)
 
 SPECTRUM_TITLES = OrderedDict({
-    "ID": "ID",
+    "ID": "SpectrumID",
     "name": "Name",
     "notes": "Notes",
     "eis_region": "EIS Region",
@@ -51,7 +51,8 @@ EDIT_TITLES = OrderedDict(
 EXCLUDING_KEY = " (multiple)"
 
 PEAK_TITLES = OrderedDict({
-    "ID": "ID",
+    "ID": "PeakID",
+    "label": "Label",
     "name": "Name",
     "model_name": "Model",
     "fwhm": "FWHM",
@@ -60,13 +61,21 @@ PEAK_TITLES = OrderedDict({
 })
 PEAK_TV_TITLES = OrderedDict(
     (attr, PEAK_TITLES[attr]) for attr in (
+        "label",
         "name",
         "center",
         "area",
         "fwhm",
-        "model_name"
     )
 )
+
+
+class ActiveIDs():
+    """Stores the active spectra, regions and peaks."""
+    # pylint: disable=too-few-public-methods
+    SPECTRA = []
+    REGION = None
+    PEAK = None
 
 
 class XPLView():
@@ -75,28 +84,48 @@ class XPLView():
     def __init__(self, builder, datahandler):
         self._builder = builder
         self._dh = datahandler
+
+        # here, the order of instantiation is important: cviface has
+        # to register its callbacks last so _cviface.plot() is always
+        # called at the end of signal handling from datahandler
         self._tviface = XPLTreeViewInterface(builder, datahandler)
-        self._cviface = XPLCanvasInterface(builder, datahandler)
         self._fitiface = XPLFitInterface(builder, datahandler)
+        self._cviface = XPLCanvasInterface(builder, datahandler)
+        self.set_visible = self._cviface.set_visible
 
         self.get_selected_spectra = self._tviface.get_selected_spectra
-        self.get_active_spectra = self._cviface.get_active_spectra
-        self.get_active_region = self._fitiface.get_active_region
-        self.get_active_peak = self._fitiface.get_selected_peak
+        self.get_active_spectra = lambda *args: ActiveIDs.SPECTRA
 
-        self.activate_region = self._fitiface.activate_region
-        self.activate_peak = self._fitiface.set_selected_peak
+        self.get_active_region = lambda *args: ActiveIDs.REGION
+
+        self.get_selected_peak = self._fitiface.get_selected_peak
+        self.get_active_peak = lambda *args: ActiveIDs.PEAK
 
         self.filter_spectra = self._tviface.filter_treeview
         self.show_rsf = self._cviface.show_rsf
 
-    def activate_spectra(self, IDs):
-        """Plot only stuff with given IDs."""
-        self._cviface.plot_only(IDs)
-        specIDs = [ID for ID in IDs if self._dh.get(ID, "type") == "spectrum"]
-        self._tviface.mark_active(specIDs)
-        self._fitiface.activate_spectra(specIDs)
+    def activate_spectra(self, spectrumIDs):
+        """Plot only spectra with ID in spectrumIDs."""
+        for spectrumID in spectrumIDs:
+            assert self._dh.isspectrum(spectrumID)
+        self._cviface.store_xylims()
+        ActiveIDs.SPECTRA = spectrumIDs
+        self._tviface.activate_spectra(spectrumIDs)
+        self._fitiface.activate_spectra(spectrumIDs)
+        self._cviface.plot_only(spectrumIDs)
         self._revert_adjustment_widgets()
+
+    def activate_region(self, regionID):
+        """Activate region."""
+        self._fitiface.activate_region(regionID)
+        # ActiveIDs.REGION = regionID
+        self._cviface.plot()
+
+    def activate_peak(self, peakID):
+        """Activate peak."""
+        self._fitiface.activate_peak(peakID)
+        # ActiveIDs.PEAK = peakID
+        self._cviface.plot()
 
     def set_region_boundary_setter(self, setter):
         """Sets a callback to be called when a DraggableAttributeLine
@@ -107,25 +136,29 @@ class XPLView():
         """Pops up the spectrum menu and returns True if the event was
         in an already selected treeview row."""
         self._tviface.pop_spectrum_context_menu(event)
-        return self._tviface.get_clicked_in_selection(event)
 
-    def get_edit_spectra_dialog(self, IDs):
+    def get_edit_spectra_dialog(self, spectrumIDs):
         """Customizes the dialog for editing spectra."""
+        for spectrumID in spectrumIDs:
+            assert self._dh.isspectrum(spectrumID)
         dialog = self._builder.get_object("edit_spectrum_dialog")
         dialog.flush()
-        if len(IDs) == 1:
-            dialog.populate_filename(self._dh.get(IDs[0], "filename"))
+        if len(spectrumIDs) == 1:
+            dialog.populate_filename(self._dh.get(spectrumIDs[0], "filename"))
             for attr, title in EDIT_TITLES.items():
-                value = str(self._dh.get(IDs[0], attr))
+                value = str(self._dh.get(spectrumIDs[0], attr))
                 dialog.add_attribute(attr, title, value)
         else:
             fnames = ""
-            for ID in IDs:
-                fnames += self._dh.get(ID, "filename") + "\n"
+            for spectrumID in spectrumIDs:
+                fnames += self._dh.get(spectrumID, "filename") + "\n"
             fnames = fnames.strip()
             dialog.populate_filename(fnames)
             for attr, title in EDIT_TITLES.items():
-                valueset = set([str(self._dh.get(ID, attr)) for ID in IDs])
+                valueset = set([
+                    str(self._dh.get(spectrumID, attr))
+                    for spectrumID in spectrumIDs
+                ])
                 value = " | ".join(valueset) + EXCLUDING_KEY
                 dialog.add_attribute(attr, title, value)
         return dialog
@@ -142,8 +175,8 @@ class XPLView():
         cal = self._builder.get_object("calibration_spinbutton_adjustment")
         norm = self._builder.get_object("normalization_switch")
 
-        IDs = self._cviface.get_active_spectra()
-        if len(IDs) != 1:
+        spectrumIDs = self._cviface.get_active_spectra()
+        if len(spectrumIDs) != 1:
             for caution in cautions:
                 caution.set_visible(True)
             # smooth.set_value(self._dh.get(IDs[0], "smoothness"))
@@ -151,9 +184,9 @@ class XPLView():
         else:
             for caution in cautions:
                 caution.set_visible(False)
-            smooth.set_value(self._dh.get(IDs[0], "smoothness"))
-            cal.set_value(self._dh.get(IDs[0], "calibration"))
-            norm.set_active(self._dh.get(IDs[0], "norm"))
+            smooth.set_value(self._dh.get(spectrumIDs[0], "smoothness"))
+            cal.set_value(self._dh.get(spectrumIDs[0], "calibration"))
+            norm.set_active(self._dh.get(spectrumIDs[0], "norm"))
 
 
 class XPLTreeViewInterface():
@@ -165,10 +198,10 @@ class XPLTreeViewInterface():
         # register callbacks into the data handler to reflect changes in
         # the meta data values or added/deleted spectra
         handlers = {
-            "added-spectrum": self._add_spectrum,
-            "removed-spectrum": self._remove_spectrum,
-            "amended-spectrum": self._amend_spectrum,
-            "cleared-spectra": self._clear_spectra
+            "added-spectrum": self._on_spectrum_added,
+            "removed-spectrum": self._on_spectrum_removed,
+            "changed-spectrum": self._on_spectrum_changed,
+            "cleared-spectra": self._on_spectra_cleared
         }
         for signal, handler in handlers.items():
             self._dh.connect(signal, handler)
@@ -194,29 +227,20 @@ class XPLTreeViewInterface():
         """Returns list of currently selected Spectrum IDs."""
         treemodelsort, pathlist = self._selection.get_selected_rows()
         iters = [treemodelsort.get_iter(path) for path in pathlist]
-        IDs = [int(treemodelsort.get(iter_, 0)[0]) for iter_ in iters]
-        logger.debug("get treeview selected IDs: {}".format(IDs))
-        return IDs
+        spectrumIDs = [int(treemodelsort.get(iter_, 0)[0]) for iter_ in iters]
+        return spectrumIDs
 
-    def set_selected_spectra(self, IDs):
-        """Sets selection to given spectra IDs."""
-        self._selection.unselect_all()
-        for row in self._treemodelsort:
-            if int(row[0]) in IDs:
-                self._selection.select_iter(row.iter)
-        logger.debug("set treeview selected IDs: {}".format(IDs))
-
-    def get_clicked_in_selection(self, event):
-        """Returns True if event location is on an already selected
-        spectrum. This is needed for the context menu to know if the
-        current selection should be kept when popping it up or if only
-        the row that was clicked should be selected."""
-        posx, posy = int(event.x), int(event.y)
-        pathinfo = self._treeview.get_path_at_pos(posx, posy)
-        if pathinfo is None:
-            return False
-        path, _col, _cellx, _celly = pathinfo
-        return path in self._selection.get_selected_rows()[1]
+    def activate_spectra(self, spectrumIDs):
+        """Mark only the spectra with ID in spectrumIDs as active."""
+        for spectrumID in spectrumIDs:
+            assert self._dh.isspectrum(spectrumID)
+        col_index_active = self._treemodel.get_col_index("active")
+        for row in self._treemodel:
+            if int(row[0]) in spectrumIDs:
+                self._treemodel.set(row.iter, col_index_active, True)
+            else:
+                self._treemodel.set(row.iter, col_index_active, False)
+        logger.debug("spectrumview: marked spectra {}".format(spectrumIDs))
 
     def pop_spectrum_context_menu(self, event):
         """Makes the context menu for spectra pop up."""
@@ -237,17 +261,8 @@ class XPLTreeViewInterface():
             search_attr = attr
         self.tv_filter = (search_attr, search_term)
         self._treemodelfilter.refilter()
-        logger.debug("searched spectrum treeview: attr '{}', regex '{}'"
+        logger.debug("spectrumview: searched attr '{}' with regex '{}'"
                      "".format(search_attr, search_term))
-
-    def mark_active(self, IDs):
-        """Mark only the spectra with IDs as active."""
-        col_index_active = self._treemodel.get_col_index("active")
-        for row in self._treemodel:
-            if int(row[0]) in IDs:
-                self._treemodel.set(row.iter, col_index_active, True)
-            else:
-                self._treemodel.set(row.iter, col_index_active, False)
 
     def _make_columns(self):
         """Initializes columns. Must therefore be called in __init__."""
@@ -260,8 +275,8 @@ class XPLTreeViewInterface():
             if model.get_value(iter_, col_index_active):
                 renderer.set_property(
                     "cell-background",
-                    COLORS["tv-highlight-bg"]
-                    )
+                    __colors__.get("treeview", "tv-highlight-bg")
+                )
                 renderer.set_property("weight", Pango.Weight.BOLD)
             else:
                 renderer.set_property("cell-background", bgcolor)
@@ -298,43 +313,42 @@ class XPLTreeViewInterface():
             return re.match(regex, treemodel.get(iter_, col_index)[0])
         self._treemodelfilter.set_visible_func(filter_func)
 
-    def _add_spectrum(self, ID):
+    def _on_spectrum_added(self, spectrumID):
         """Adds spectrum to the the TreeView. It must already be present
         in the DataHandler."""
         specdict = dict(
-            (attr, self._dh.get(ID, attr))
+            (attr, self._dh.get(spectrumID, attr))
             for attr in self._treemodel.titles
         )
         specdict["active"] = False
         self._treemodel.append(specdict)
-        logger.debug("added spectrum with ID {} to treeview".format(ID))
+        logger.debug("spectrumview: added spectrum {}".format(spectrumID))
 
-    def _remove_spectrum(self, ID):
+    def _on_spectrum_removed(self, spectrumID):
         """Removes spectrum from the TreeView. It does not matter if it is
         still in the DataHandler."""
         for row in self._treemodel:
-            if int(row[0]) == ID:
+            if int(row[0]) == spectrumID:
                 self._treemodel.remove(row.iter)
-        logger.debug("removed spectrum with ID {} from treeview".format(ID))
+        logger.debug("spectrumview: removed spectrum {}".format(spectrumID))
 
-    def _amend_spectrum(self, ID, newdict):
+    def _on_spectrum_changed(self, spectrumID, attr):
         """Changes spectrum data by applying newdict which contains all
         (attr: newvalue) pairs that should be updated."""
-        col_indexes = []
-        values = []
-        for attr, value in newdict.items():
-            col_indexes.append(self._treemodel.get_col_index(attr))
-            values.append(value)
+        if attr not in TV_TITLES:
+            return
+        col_index = self._treemodel.get_col_index(attr)
+        value = self._dh.get(spectrumID, attr)
         for row in self._treemodel:
-            if int(row[0]) == ID:
-                self._treemodel.set(row.iter, col_indexes, values)
-        logger.debug("updated spectrum with ID {} in treeview with new"
-                     "values {}".format(ID, newdict))
+            if int(row[0]) == spectrumID:
+                self._treemodel.set(row.iter, col_index, value)
+        logger.debug("spectrumview: updated spectrum {}, attr '{}' is now '{}'"
+                     "".format(spectrumID, attr, value))
 
-    def _clear_spectra(self):
+    def _on_spectra_cleared(self):
         """Removes all spectra from the model."""
         self._treemodel.clear()
-        logger.debug("cleared all spectra from treeview")
+        logger.debug("spectrumview: cleared all spectra")
 
 
 class XPLCanvasInterface():
@@ -352,10 +366,10 @@ class XPLCanvasInterface():
             "removed-region": self._on_dh_data_changed,
             "cleared-regions": self._on_dh_data_changed,
             "changed-region": self._on_dh_data_changed,
+            "fit-region": self._on_dh_data_changed,
             "added-peak": self._on_dh_data_changed,
             "removed-peak": self._on_dh_data_changed,
             "cleared-peaks": self._on_dh_data_changed,
-            "changed-peak": self._on_dh_data_changed
         }
         for signal, handler in handlers.items():
             self._dh.connect(signal, handler)
@@ -368,8 +382,7 @@ class XPLCanvasInterface():
         self._navbar = builder.get_object("plot_toolbar")
 
         # get the rsfhandler needed to fetch rsf data that can be plotted
-        rsf_path = os.path.join(__config__.get("general", "basedir"), "rsf.db")
-        self.rsfhandler = RSFHandler(rsf_path)
+        self.rsfhandler = RSFHandler(RSF_DB_PATH)
         # set up which rsf data should be plotted
         # by rsf_filter = (elements, source)
         self.rsf_filter = ([], "")
@@ -380,171 +393,241 @@ class XPLCanvasInterface():
         self._draglines = []
 
         # contains all IDs for objects that should be plotted
-        self._activeIDs = []
+        self._plotIDs = []
 
-        self._plot()
+        # which elements should be plotted?
+        self._doplot = {
+            "spectrum": True,
+            "region-boundaries": True,
+            "region-background": True,
+            "region-fit": True,
+            "peak": True,
+            "rsfs": True
+        }
 
     def get_active_spectra(self):
         """Returns which spectra are on the canvas right now."""
-        spectrum_IDs = [
-            ID for ID in self._activeIDs
-            if self._dh.get(ID, "type") == "spectrum"
-        ]
-        logger.debug("get actived IDs: {}".format(spectrum_IDs))
-        return spectrum_IDs
+        spectrumIDs = [ID for ID in self._plotIDs if self._dh.isspectrum(ID)]
+        return spectrumIDs
 
-    def add_to_plot(self, IDs):
-        """Add specific IDs to be plotted."""
-        self._activeIDs.extend(IDs)
-        self._plot()
-
-    def remove_from_plot(self, IDs):
-        """Unplot specific IDs."""
-        for ID in IDs:
-            self._activeIDs.remove(ID)
-        self._plot()
-
-    def clear_plot(self):
-        """Clear plot."""
-        self._activeIDs.clear()
-        self._plot()
+    def set_visible(self, keyword, yesno):
+        """Sets plot things that belong to keyword to visible/invisible."""
+        if keyword not in self._doplot:
+            raise TypeError("canvas: keyword '{}' unknown".format(keyword))
+        self._doplot[keyword] = bool(yesno)
+        self.plot()
 
     def plot_only(self, IDs):
         """Plot only the given IDs."""
-        self._activeIDs.clear()
-        self.add_to_plot(IDs)
+        self._plotIDs.clear()
+        self._plotIDs.extend(IDs)
+        self.plot()
 
     def show_rsf(self, elements, source):
         """Add elements to the rsfs to be shown."""
         self.rsf_filter = (elements, source)
-        self._plot()
+        self.plot()
 
     def _update_active(self):
-        """Update self._activeIDs with child and grandchild IDs."""
-        for ID in self._activeIDs:
-            if not self._dh.ID_exists(ID):
-                self._activeIDs.remove(ID)
+        """Update self._plotIDs with child and grandchild IDs."""
+        new_IDs = []
+        for ID in self._plotIDs:
+            if not self._dh.exists(ID):
                 continue
-            for child_ID in self._dh.children(ID):
-                if child_ID not in self._activeIDs:
-                    self._activeIDs.append(child_ID)
-                for grandchild_ID in self._dh.children(child_ID):
-                    if grandchild_ID not in self._activeIDs:
-                        self._activeIDs.append(child_ID)
+            new_IDs.append(ID)
+            for childID in self._dh.children(ID):
+                new_IDs.append(childID)
+                for grandchildID in self._dh.children(childID):
+                    new_IDs.append(grandchildID)
+        self._plotIDs = list(set(new_IDs))
 
-    def _plot(self, keepaxes=False):
-        """Plots every ID in self._activeIDs after checking for child and
+    def store_xylims(self):
+        """Stores the current xylims for the current view."""
+        xy_keyword = str(ActiveIDs.SPECTRA)
+        self._fig.store_xylims(keyword=xy_keyword)
+
+    def plot(self, keepaxes=True):
+        """Plots every ID in self._plotIDs after checking for child and
         grandchild IDs. Also plots RSF data"""
         self._update_active()
-        logger.debug("plotting IDs {} ...".format(self._activeIDs))
+        # check if there actually is something to plot
+        if not self._plotIDs:
+            self._fig.restore_xylims()
+            self._canvas.draw_idle()
+            self._navbar.disable_tools()
+            return
 
-        # prepare by deleting everything old and storing the current xylims
-        self._fig.store_xylims()
+        xy_keyword = str(ActiveIDs.SPECTRA)
+        if not self._fig.isstored(xy_keyword):
+            keepaxes = False
+
         self._draglines.clear()
+        self._fig.reset_xy_centerlims()
         self._ax.cla()
 
-        # check if there actually is something to plot
-        if self._activeIDs:
-            self._fig.reset_xy_centerlims()
-        else:
-            self._canvas.draw_idle()
-
         # call the individual plot jobs
-        for ID in self._activeIDs:
-            type_ = self._dh.get(ID, "type")
-            if type_ == "spectrum":
+        for ID in self._plotIDs:
+            if self._dh.isspectrum(ID):
                 self._plot_spectrum(ID)
-            elif type_ == "region":
+            elif self._dh.isregion(ID):
                 self._plot_region(ID)
-            elif type_ == "peak":
+            elif self._dh.ispeak(ID):
                 self._plot_peak(ID)
+            else:
+                raise TypeError("ID {} can not be plotted".format(ID))
         if self.rsf_filter[0]:
-            logger.debug("plotting rsfs {}".format(self.rsf_filter))
             self._plot_rsfs(self.rsf_filter[0], self.rsf_filter[1])
+            logger.debug("canvas: plot rsfs {}".format(self.rsf_filter))
 
         # restore xylims if necessary and then redraw
         if keepaxes:
-            self._fig.restore_xylims()
+            self._fig.restore_xylims(keyword=xy_keyword)
         else:
-            self._fig.center_view()
+            self._fig.center_view(keyword=xy_keyword)
         self._canvas.draw_idle()
+        self._navbar.disable_tools()
 
-    def _plot_spectrum(self, ID):
+        logger.debug("canvas: plot IDs {}".format(self._plotIDs))
+
+    def _plot_spectrum(self, spectrumID):
         """Plots a spectrum and updates the xylims for a centered view."""
-        lineprops = {
-            "color": COLORS["spectrum"],
-            "linewidth": 1,
-            "linestyle": "-",
-            "alpha": 1
-        }
-        energy, cps, name = self._dh.get_multiple(ID, "energy", "cps", "name")
-        self._ax.plot(energy, cps, label=name, **lineprops)
+        energy = self._dh.get(spectrumID, "energy")
+        cps = self._dh.get(spectrumID, "cps")
+        if not self._doplot["region-background"]:
+            new_cps = [0] * len(cps)
+            for regionID in self._dh.children(spectrumID):
+                emin = np.searchsorted(energy, self._dh.get(regionID, "emin"))
+                emax = np.searchsorted(energy, self._dh.get(regionID, "emax"))
+                background = self._dh.get(regionID, "background")
+                new_cps[emin:emax] += cps[emin:emax] - background
+            if any(new_cps):
+                cps = new_cps
+
+        if self._doplot["spectrum"]:
+            lineprops = {
+                "color": __colors__.get("plotting", "spectrum"),
+                "linewidth": 1,
+                "linestyle": "-",
+                "alpha": 1
+            }
+            self._ax.plot(energy, cps, **lineprops)
 
         erange = max(energy) - min(energy)
-        # crange = max(cps) - min(cps)
         self._fig.update_xy_centerlims(
             min(energy) - erange * 0.02,
             max(energy) + erange * 0.02,
-            0,          # min(cps) - crange * 0.05,
+            0,
             max(cps) * 1.1
         )
 
-    def _plot_region(self, ID):
+    def _plot_region(self, regionID):
         """Plots a region by plotting its limits with DraggableVLines and
         plotting the background intensity."""
-        lineprops = {
-            "color": COLORS["region-vlines"],
-            "linewidth": 2,
-            "linestyle": "--",
-            "alpha": 1
-        }
-        line = self._ax.axvline(self._dh.get(ID, "emin"), 0, 1, **lineprops)
-        self._draglines.append(DraggableAttributeLine(
-            line, ID, "emin", self.dragline_callback))
-        line = self._ax.axvline(self._dh.get(ID, "emax"), 0, 1, **lineprops)
-        self._draglines.append(DraggableAttributeLine(
-            line, ID, "emax", self.dragline_callback))
+        emin = self._dh.get(regionID, "emin")
+        emax = self._dh.get(regionID, "emax")
+        energy = self._dh.get(regionID, "energy")
+        background = self._dh.get(regionID, "background")
+        if not self._doplot["region-background"]:
+            background = [0] * len(background)
+        fit_cps = self._dh.get(regionID, "fit_cps")
 
-        if self._dh.get(ID, "background") is None:
-            return
-        lineprops = {
-            "color": COLORS["region-background"],
-            "linewidth": 1,
-            "linestyle": "--",
-            "alpha": 1}
-        energy, background = self._dh.get_multiple(ID, "energy", "background")
-        self._ax.plot(energy, background, **lineprops)
+        if self._doplot["region-boundaries"]:
+            if regionID == ActiveIDs.REGION:
+                color = __colors__.get("plotting", "region-vlines-active")
+            else:
+                color = __colors__.get("plotting", "region-vlines")
+            lineprops = {
+                "color": color,
+                "linewidth": 2,
+                "linestyle": "--",
+                "alpha": 1
+            }
+            line = self._ax.axvline(emin, 0, 1, **lineprops)
+            self._draglines.append(DraggableAttributeLine(
+                line, regionID, "emin", self.dragline_callback))
+            line = self._ax.axvline(emax, 0, 1, **lineprops)
+            self._draglines.append(DraggableAttributeLine(
+                line, regionID, "emax", self.dragline_callback))
 
-    def _plot_peak(self, ID):
+        if self._doplot["region-background"] and any(background):
+            if regionID == ActiveIDs.REGION:
+                color = __colors__.get("plotting", "region-background-active")
+            else:
+                color = __colors__.get("plotting", "region-background")
+            lineprops = {
+                "color": color,
+                "linewidth": 1,
+                "linestyle": "--"
+            }
+            self._ax.plot(energy, background, **lineprops)
+
+        if self._doplot["region-fit"] and any(fit_cps):
+            if regionID == ActiveIDs.REGION:
+                color = __colors__.get("plotting", "peak-sum-active")
+            else:
+                color = __colors__.get("plotting", "peak-sum")
+            lineprops = {
+                "color": color,
+                "linewidth": 1,
+                "linestyle": "--"
+            }
+            self._ax.plot(energy, background + fit_cps, **lineprops)
+
+
+    def _plot_peak(self, peakID):
         """Plots a peak."""
-        lineprops = {
-            "color": COLORS["peak"],
-            "linewidth": 1,
-            "linestyle": "--"
-        }
-        regionID = self._dh.parent(ID)
-        energy, background = self._dh.get_multiple(
-            regionID, "energy", "background")
-        fit_cps = self._dh.get(ID, "fit_cps")
-        self._ax.plot(energy, background + fit_cps, **lineprops)
+        energy = self._dh.get(peakID, "energy")
+        background = self._dh.get(peakID, "background")
+        if not self._doplot["region-background"]:
+            background = [0] * len(background)
+        fit_cps = self._dh.get(peakID, "fit_cps")
+
+        if self._doplot["peak"]:
+            if peakID == ActiveIDs.PEAK:
+                color = __colors__.get("plotting", "peak-active")
+                lineprops = {
+                    "color": color,
+                    "linewidth": 1,
+                    "linestyle": "--",
+                    "alpha": 0.2
+                }
+                self._ax.fill_between(
+                    energy,
+                    background + fit_cps,
+                    background,
+                    **lineprops
+                )
+                self._ax.plot(energy, background + fit_cps, **lineprops)
+            else:
+                color = __colors__.get("plotting", "peak")
+                lineprops = {
+                    "color": color,
+                    "linewidth": 1,
+                    "linestyle": "--"
+                }
+                self._ax.plot(energy, background + fit_cps, **lineprops)
 
 
     def _plot_rsfs(self, elements, source):
         """Plots RSF values for given elements with given X-ray souce."""
         # fetch data through the rsfhandler
+        if not self._doplot["rsfs"]:
+            return
+
         rsfs = []
         for element in elements:
             dicts = self.rsfhandler.get_element(element, source)
             if dicts:
                 rsfs.append(dicts)
             else:
-                logger.info("element {} not in database".format(element))
+                logger.warning("canvas: element {} not found".format(element))
 
         # set up colors and maximum rsf intensity for scaling the vlines
         if not rsfs:
             return
         max_rsf = max(max([[d["RSF"] + 1e-9 for d in ds] for ds in rsfs]))
-        colors = COLORS["rsf-vlines"] * 10
+        colorstr = __colors__.get("plotting", "rsf-vlines").replace(" ", "")
+        colors = colorstr.split(",") * 10
 
         # plot the individual vlines
         for i, peaks in enumerate(rsfs):
@@ -557,7 +640,7 @@ class XPLCanvasInterface():
                 self._ax.annotate(
                     peak["Fullname"],
                     xy=(peak["BE"], rsf),
-                    color=COLORS["rsf-annotation"],
+                    color=__colors__.get("plotting", "rsf-annotation"),
                     textcoords="data",
                     ha="center",
                     va="bottom"
@@ -565,15 +648,33 @@ class XPLCanvasInterface():
 
     def _on_dh_data_changed(self, ID=None, attr=None):
         """Replots if the ID is affected. Depending on changed attr, the
-        axislims are kept or not."""
+        axislims are kept or not. The ID is affected either if it is
+        in self._plotIDs or its parend is. Also, if no ID is given,
+        we should replot."""
+        if (ID is not None
+                and ID not in self._plotIDs
+                and self._dh.exists(ID)
+                and self._dh.exists(self._dh.parent(ID))
+                and self._dh.parent(ID) not in self._plotIDs):
+            return
+        trigger_attrs = (
+            None,
+            "norm",
+            "smoothness",
+            "calibration",
+            "int_time",
+            "energy",
+            "cps",
+            "bgtype",
+            "emin",
+            "emax"
+        )
+        if attr not in trigger_attrs:
+            return
         keepaxes = not attr in ("norm",)
-        # the ID is affected either if it is active or its parent is
-        # also, if no ID is given, we should replot
-        if (ID is None
-                or ID in self._activeIDs
-                or self._dh.parent(ID) in self._activeIDs):
-            logger.debug("replotting because datahandler changed...")
-            self._plot(keepaxes)
+        self.store_xylims()
+        logger.debug("replotting because datahandler changed...")
+        self.plot(keepaxes)
 
 
 class XPLFitInterface():
@@ -590,9 +691,10 @@ class XPLFitInterface():
             "removed-region": self._on_region_removed,
             "cleared-regions": self._on_regions_cleared,
             "added-peak": self._on_peak_added,
+            "changed-peak": self._on_peak_changed,
             "removed-peak": self._on_peak_removed,
             "cleared-peaks": self._on_peaks_cleared,
-            "changed-peak": self._on_peak_changed,
+            "fit-region": self._on_fit_region,
         }
         for signal, handler in handlers.items():
             self._dh.connect(signal, handler)
@@ -604,27 +706,75 @@ class XPLFitInterface():
         self._peak_selection = self._builder.get_object("peak_selection")
         self._peak_model = self._builder.get_object("peak_treestore")
 
-        # this class needs the active spectra for updating the widgets
-        # correctly (this list is updated through activate_spectra)
-        self._active_specIDs = []
-        self._active_region = None
-        self._active_peak = None
-
         self._make_peakview_columns()
 
-    def get_active_region(self):
-        """Returns the region that is currently selected or None."""
-        return self._active_region
-        # activeID = self._region_chooser.get_active_id()
-        # if activeID is None:
-        #     return activeID
-        # return int(activeID)
+    def activate_spectra(self, spectrumIDs=None):
+        """Reacts upon changing the active spectra by refilling the
+        region_chooser and updating the widgets. Always
+        either calls activate_region() or _update_widgets()."""
+        logger.debug("regionview: activate spectra {}".format(spectrumIDs))
+        if spectrumIDs is None:
+            self._update_widgets()
+            return
+        self._region_chooser.remove_all()
+        if len(spectrumIDs) == 1:
+            regionIDs = self._dh.children(spectrumIDs[0])
+            for regionID in regionIDs:
+                region_name = self._dh.get(regionID, "name")
+                self._region_chooser.append(str(regionID), region_name)
+            if regionIDs:
+                self.activate_region(regionIDs[0])
+            else:
+                self.activate_region(None)
+        else:
+            self._update_widgets()
 
     def activate_region(self, regionID):
-        """Sets the active region."""
-        if regionID != self._active_region:
-            self._active_region = regionID
+        """Sets the active region. Always either calls activate_peak() or
+        _update_widgets()."""
+        if regionID == ActiveIDs.REGION:
             self._update_widgets()
+            return
+        ActiveIDs.REGION = regionID
+
+        rchooserID = self._region_chooser.get_active_id()
+        if str(regionID) != rchooserID:
+
+            self._region_chooser.set_active_id(str(regionID))
+        logger.debug("regionview: activated region {}".format(regionID))
+
+        if self._peak_model.region != regionID:
+            self._on_peaks_cleared(regionID)
+            self._peak_model.region = regionID
+            if regionID:
+                peakIDs = self._dh.children(regionID)
+                for peakID in peakIDs:
+                    self._on_peak_added(peakID)
+                if peakIDs:
+                    self.activate_peak(peakIDs[0])
+                else:
+                    self.activate_peak(None)
+            else:
+                self._update_widgets()
+        else:
+            self._update_widgets()
+
+    def activate_peak(self, peakID):
+        """Sets the active peak. If peakID is None, the currently selected
+        peak in the peakview is used."""
+        if peakID == ActiveIDs.PEAK:
+            self._update_widgets()
+            return
+        ActiveIDs.PEAK = peakID
+
+        self._peak_selection.unselect_all()
+        model = self._peak_selection.get_tree_view().get_model()
+        for row in model:
+            if int(row[0]) == peakID:
+                self._peak_selection.select_iter(row.iter)
+                break
+        logger.debug("peakview: activated peak {}".format(peakID))
+        self._update_widgets()
 
     def get_selected_peak(self):
         """Returns the peak that is currently selected or None."""
@@ -632,39 +782,8 @@ class XPLFitInterface():
         if not pathlist:
             return None
         iter_ = peak_modelsort.get_iter(pathlist[0])
-        ID = int(peak_modelsort.get(iter_, 0)[0])
-        logger.debug("get peakview selected ID: {}".format(ID))
-        return ID
-
-    def set_selected_peak(self, peakID):
-        """Sets the active peak."""
-        if peakID != self._active_peak:
-            return
-        self._peak_selection.unselect_all()
-        for row in self._peak_model:
-            if int(row[0]) == peakID:
-                self._peak_selection.select_iter(row.iter)
-                break
-        self._active_peak = peakID
-
-    def activate_spectra(self, IDs=None):
-        """Reacts upon changing the active spectra by refilling the
-        region_chooser and updating the widgets."""
-        if IDs is None or IDs == self._active_specIDs:
-            self._update_widgets()
-            return
-        self._region_chooser.remove_all()
-        if len(IDs) == 1:
-            child_IDs = self._dh.children(IDs[0])
-            if child_IDs:
-                self._active_region = child_IDs[0]
-            else:
-                self._active_region = None
-            for ID in child_IDs:
-                self._region_chooser.append(str(ID), self._dh.get(ID, "name"))
-        self._active_specIDs.clear()
-        self._active_specIDs.extend(IDs)
-        self._update_widgets()
+        peakID = int(peak_modelsort.get(iter_, 0)[0])
+        return peakID
 
     def _update_widgets(self):
         """Reacts upon changing the active spectra by updating the widgets."""
@@ -672,96 +791,137 @@ class XPLFitInterface():
         regions_stack = self._builder.get_object("region_contentbox")
         peak_parambox = self._builder.get_object("peak_param_box")
 
-        regionID = self.get_active_region()
+        fwhm_entry = self._builder.get_object("peak_fwhm_entry")
+        area_entry = self._builder.get_object("peak_area_entry")
+        pos_entry = self._builder.get_object("peak_position_entry")
 
-        if self._peak_model.region != regionID:
-            self._on_peaks_cleared()
-            if regionID:
-                for new_peakID in self._dh.children(regionID):
-                    self._on_peak_added(new_peakID)
-            self._peak_model.region = regionID
+        regionID = ActiveIDs.REGION
+        peakID = ActiveIDs.PEAK
+        spectrumIDs = ActiveIDs.SPECTRA
 
-        rchooserID = self._region_chooser.get_active_id()
-        if rchooserID is not None:
-            rchooserID = int(rchooserID)
-        if regionID != rchooserID:
-            self._region_chooser.set_active_id(str(regionID))
+        if peakID:
+            def get_c_string(attr):
+                """Get constraint string for peak.attr."""
+                constraints = self._dh.get_peak_constraints(peakID, attr)
+                cstring = ""
+                if constraints["expr"]:
+                    cstring += " = {}".format(constraints["expr"])
+                else:
+                    if constraints["min_"] not in (-np.inf, 0):
+                        cstring += " > {:.2f}".format(constraints["min_"])
+                    if constraints["max_"] != np.inf:
+                        cstring += " < {:.2f}".format(constraints["max_"])
+                return cstring
+            fwhm_entry.set_text(get_c_string("fwhm"))
+            area_entry.set_text(get_c_string("area"))
+            pos_entry.set_text(get_c_string("center"))
 
-        peakID = self.get_selected_peak()
-
-        regions_addbox.set_sensitive(len(self._active_specIDs) == 1)
+        regions_addbox.set_sensitive(
+            len(spectrumIDs) == 1
+        )
         self._region_chooser.set_sensitive(
-            len(self._active_specIDs) == 1
-            and self._dh.children(self._active_specIDs[0])
-            )
+            len(spectrumIDs) == 1
+            and self._dh.children(spectrumIDs[0])
+        )
         regions_stack.set_sensitive(
-            len(self._active_specIDs) == 1
+            len(spectrumIDs) == 1
             and regionID is not None
-            )
+        )
         peak_parambox.set_sensitive(
-            len(self._active_specIDs) == 1
+            len(spectrumIDs) == 1
             and regionID is not None
             and peakID is not None
-            )
+        )
 
-    def _on_region_added(self, ID):
+    def _on_region_added(self, regionID):
         """Adds a region to the region combo box."""
-        self._region_chooser.append(str(ID), self._dh.get(ID, "name"))
-        self._region_chooser.set_active_id(str(ID))
-        self._update_widgets()
+        region_name = self._dh.get(regionID, "name")
+        self._region_chooser.append(str(regionID), region_name)
+        logger.debug("regionview: added region {}".format(regionID))
+        self.activate_region(regionID)
 
-    def _on_region_removed(self, ID):
+    def _on_region_removed(self, regionID):
         """Removes a region from the region combo box."""
         model = self._region_chooser.get_model()
         for i, row in enumerate(model):
-            if int(row[1]) == ID:
+            if int(row[1]) == regionID:
                 model.remove(row.iter)
+                logger.debug("regionview: removed region {}".format(regionID))
                 if i > 0:
-                    self._region_chooser.set_active_iter(model[i-1].iter)
-                # this is necessary because "if model:" is always True
+                    self.activate_region(int(model[i-1][-1]))
                 elif len(model): # pylint: disable=len-as-condition
-                    self._region_chooser.set_active_iter(model[i].iter)
+                    self.activate_region(int(model[0][-1]))
+                else:
+                    self.activate_region(None)
                 break
-        self._update_widgets()
-
-    def _on_regions_cleared(self, ID):
-        """Removes all regions from region combo box."""
-        if len(self._active_specIDs) == 1 and self._active_specIDs[0] == ID:
-            self._region_chooser.remove_all()
+        else:
             self._update_widgets()
 
-    def _on_peak_added(self, ID):
+    def _on_regions_cleared(self, spectrumID):
+        """Removes all regions from region combo box."""
+        self._region_chooser.remove_all()
+        logger.debug("regionview: cleared regions from spectrum {}"
+                     "".format(spectrumID))
+        self.activate_region(None)
+
+    def _on_peak_added(self, peakID):
         """Add peak to the peakview. It must already be present
         in the DataHandler."""
         peakdict = dict(
-            (attr, self._dh.get(ID, attr))
+            (attr, self._dh.get(peakID, attr))
             for attr in self._peak_model.titles
         )
         self._peak_model.append(peakdict)
-        logger.debug("added peak with ID {} to treeview".format(ID))
+        logger.debug("peakview: added peak {}".format(peakID))
+        self.activate_peak(peakID)
 
-    def _on_peak_removed(self, ID):
+    def _on_peak_removed(self, peakID):
         """Removes peak from the TreeView. It does not matter if it is
         still in the DataHandler."""
-        for row in self._peak_model:
-            if int(row[0]) == ID:
+        for i, row in enumerate(self._peak_model):
+            if int(row[0]) == peakID:
                 self._peak_model.remove(row.iter)
-        logger.debug("removed peak {} from treeview".format(ID))
+                if i > 0:
+                    self.activate_peak(int(self._peak_model[i-1][0]))
+                elif len(self._peak_model): # pylint: disable=len-as-condition
+                    self.activate_peak(int(self._peak_model[0][0]))
+                else:
+                    self.activate_peak(None)
+                logger.debug("peakview: removed peak {}".format(peakID))
+                return
+        raise TypeError("peakview: non-existent ID {} cannot be removed"
+                        "".format(peakID))
 
-    def _on_peaks_cleared(self):
+    def _on_peak_changed(self, peakID, attr):
+        """Refreshes peak param column."""
+        if attr not in PEAK_TITLES:
+            return
+        col_index = self._peak_model.get_col_index(attr)
+        value = str(self._dh.get(peakID, attr))
+        for row in self._peak_model:
+            if int(row[0]) == peakID:
+                self._peak_model.set(row.iter, col_index, value)
+        logger.debug("peakview: updated peak {}, attr '{}' is now '{}'"
+                     "".format(peakID, attr, value))
+
+    def _on_peaks_cleared(self, regionID):
         """Removes all peaks from the model."""
         self._peak_model.clear()
-        logger.debug("cleared all peaks from peakview")
+        logger.debug("peakview: cleared peaks from region {}".format(regionID))
+        self.activate_peak(None)
 
-    def _on_peak_changed(self, ID, *_args):
+    def _on_fit_region(self, regionID):
         """Updates the treeview for changed peak data."""
-        if ID == self.get_active_region():
+        if regionID == ActiveIDs.REGION:
             for row in self._peak_model:
                 peakID = int(row[0])
-                attrs = ("center", "area", "fwhm")
+                attrs = PEAK_TITLES.keys()
                 idxs = [self._peak_model.get_col_index(attr) for attr in attrs]
                 values = [str(self._dh.get(peakID, attr)) for attr in attrs]
                 self._peak_model.set(row.iter, idxs, values)
+        else:
+            logger.warning("region {} should be plotted, but {} active"
+                           "".format(regionID, ActiveIDs.REGION))
 
     def _make_peakview_columns(self):
         """Initializes columns. Must therefore be called in __init__."""
@@ -769,12 +929,25 @@ class XPLFitInterface():
             """Renders the the values so that numbers are rounded."""
             attr, col_index = data
             value = model.get_value(iter_, col_index)
+            peakID = int(model.get_value(iter_, 0))
             if value.replace(".", "", 1).isdigit():
                 if attr == "area":
                     value = str(int(float(value)))
                 else:
                     value = "{:.2f}".format(float(value))
-            renderer.set_property("text", value)
+            if attr in ("center", "fwhm", "area"):
+                constraints = self._dh.get_peak_constraints(peakID, attr)
+                cstring = ""
+                if constraints["expr"]:
+                    cstring += " = {}".format(constraints["expr"])
+                else:
+                    if constraints["min_"] not in (-np.inf, 0):
+                        cstring += " &gt; {:.2f}".format(constraints["min_"])
+                    if constraints["max_"] != np.inf:
+                        cstring += " &lt; {:.2f}".format(constraints["max_"])
+                value = ("{}<span color='#999999' font_size='xx-small'>"
+                         "{}</span>".format(value, cstring))
+            renderer.set_property("markup", value)
         for attr, title in PEAK_TV_TITLES.items():
             renderer = Gtk.CellRendererText(xalign=0)
             col_index = self._peak_model.get_col_index(attr)

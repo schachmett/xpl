@@ -52,24 +52,23 @@
 			</section>
 		</submenu>
 		<submenu>
-			<attribute name="label">_Processing</attribute>
-			<section>
-				<item>
-					<attribute name="label">_Subtract background</attribute>
-					<attribute name="action">app.subtract-background</attribute>
-				</item>
-			</section>
-		</submenu>
-		<submenu>
 			<attribute name="label">_Appearence</attribute>
 			<section>
 				<item>
 					<attribute name="label">_Plot selected spectra</attribute>
-					<attribute name="action">win.show-selected</attribute>
+					<attribute name="action">win.show-selected-spectra</attribute>
 				</item>
 				<item>
-					<attribute name="label">_Axes options</attribute>
-					<attribute name="action">app.edit-axes</attribute>
+					<attribute name="label">Background</attribute>
+					<attribute name="action">win.toggle-bg</attribute>
+				</item>
+				<item>
+					<attribute name="label">Region Vertical Lines</attribute>
+					<attribute name="action">win.toggle-region-vlines</attribute>
+				</item>
+				<item>
+					<attribute name="label">Single Peaks</attribute>
+					<attribute name="action">win.toggle-peaks</attribute>
 				</item>
 			</section>
 		</submenu>

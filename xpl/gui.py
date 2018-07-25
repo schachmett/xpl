@@ -16,7 +16,7 @@ from matplotlib.backends.backend_gtk3 import (
 from matplotlib.figure import Figure
 import numpy as np
 
-from xpl import COLORS
+from xpl import __colors__
 from xpl.view import SPECTRUM_TITLES, EXCLUDING_KEY, PEAK_TITLES
 from xpl.canvas_selection import SpanSelector, PeakSelector
 
@@ -30,6 +30,7 @@ class XPLSpectrumTreeStore(Gtk.TreeStore):
     __gtype_name__ = "XPLSpectrumTreeStore"
     def __init__(self):
         self.titles = SPECTRUM_TITLES
+        assert list(self.titles.keys())[0] == "ID"
         types = [str] * len(self.titles) + [bool]
         super().__init__(*types)
 
@@ -76,11 +77,11 @@ class XPLSpectrumTreeStore(Gtk.TreeStore):
 
 class XPLPeakTreeStore(Gtk.TreeStore):
     """A TreeModel that has methods for filling with spectrum info.
-    ID is always the first attribute in self.titles and the last element of
-    each row is True or False for plotting!"""
+    ID is always the first attribute in self.titles."""
     __gtype_name__ = "XPLPeakTreeStore"
     def __init__(self):
         self.titles = PEAK_TITLES
+        assert list(self.titles.keys())[0] == "ID"
         self.region = None
         types = [str] * len(self.titles)
         super().__init__(*types)
@@ -156,6 +157,7 @@ class XPLEditSpectrumDialog(Gtk.Dialog):
     __gtype_name__ = "XPLEditSpectrumDialog"
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.excluding_key = EXCLUDING_KEY
         self.box = self.get_content_area()
         self.newdict_entries = {}
 
@@ -183,7 +185,7 @@ class XPLEditSpectrumDialog(Gtk.Dialog):
         newdict = dict(
             (attr, self.newdict_entries[attr].get_text())
             for attr in self.newdict_entries
-            if EXCLUDING_KEY not in attr
+            if self.excluding_key not in self.newdict_entries[attr].get_text()
         )
         return newdict
 
@@ -196,7 +198,7 @@ class XPLFigure(Figure):
         self.ax.set_facecolor("#3A3A3A")
         self.patch.set_facecolor("#3A3A3A")
 
-        self._xy_buffer = [0, 0, 1, 1]
+        self._xy_buffer = {"default": [0, 1, 0, 1]}
         self._xy = [np.inf, -np.inf, np.inf, -np.inf]
 
     def reset_xy_centerlims(self):
@@ -218,23 +220,38 @@ class XPLFigure(Figure):
         """Returns the current value of self._xy[3]."""
         return self._xy[3]
 
-    def store_xylims(self):
+    def store_xylims(self, keyword="default"):
         """Stores axis limits in self._xy_buffer."""
-        self._xy_buffer[1], self._xy_buffer[0] = self.ax.get_xlim()
-        self._xy_buffer[2], self._xy_buffer[3] = self.ax.get_ylim()
+        xmin = min(self.ax.get_xlim())
+        xmax = max(self.ax.get_xlim())
+        ymin = min(self.ax.get_ylim())
+        ymax = max(self.ax.get_ylim())
+        self._xy_buffer[keyword] = [xmin, xmax, ymin, ymax]
+        # self._xy_buffer[1], self._xy_buffer[0] = self.ax.get_xlim()
+        # self._xy_buffer[2], self._xy_buffer[3] = self.ax.get_ylim()
 
-    def restore_xylims(self):
+    def restore_xylims(self, keyword="default"):
         """Sets the axis limits."""
-        if np.all(np.isfinite(self._xy_buffer)):
-            self.ax.set_xlim(*self._xy_buffer[1::-1])
-            self.ax.set_ylim(*self._xy_buffer[2:])
+        if keyword not in self._xy_buffer:
+            raise KeyError("key {} not in figure xy buffer".format(keyword))
+        if np.all(np.isfinite(self._xy_buffer[keyword])):
+            xmin, xmax, ymin, ymax = self._xy_buffer[keyword]
+            self.ax.set_xlim(xmax, xmin)
+            self.ax.set_ylim(ymin, ymax)
             self.set_ticks()
+        else:
+            logger.warning("xylims not properly adjusted")
 
-    def center_view(self):
+    def isstored(self, keyword):
+        """Returns if the keyword is already known."""
+        return keyword in self._xy_buffer
+
+    def center_view(self, keyword="default"):
         """Focuses view on current plot."""
-        if self._xy_buffer != self._xy:
-            self._xy_buffer = self._xy
-        self.restore_xylims()
+        if np.all(np.isfinite(self._xy)):
+            self._xy_buffer[keyword] = self._xy
+        logger.warning("xylims not properly adjusted")
+        self.restore_xylims(keyword)
 
     def set_ticks(self):
         """Configures axes ticks."""
@@ -245,8 +262,8 @@ class XPLFigure(Figure):
             direction="out",
             # pad=-20,
             labelsize="large",
-            labelcolor=COLORS["axisticks"],
-            color=COLORS["axisticks"],
+            labelcolor=__colors__.get("plotting", "axisticks"),
+            color=__colors__.get("plotting", "axisticks"),
             labelleft=False,
             top=False,
             left=False,
@@ -335,7 +352,7 @@ class XPLPlotToolbar(NavigationToolbar, Gtk.Toolbar):
 
         self._active = None
         self.mode = ""
-        self.canvas.widgetlock.release(self)
+        self.release_all_tools()
         for a in self.canvas.figure.get_axes():
             a.set_navigate_mode(self._active)
         self.set_message(self.mode)
@@ -429,6 +446,10 @@ class XPLPlotToolbar(NavigationToolbar, Gtk.Toolbar):
             "linewidth": 1,
             "linestyle": "-"
         }
+        if kwargs["limits"]:
+            self.peak_selector.set_limits(kwargs.pop("limits"))
+        else:
+            self.peak_selector.set_limits((-np.inf, np.inf))
         wedgeprops.update(kwargs)
         self.peak_selector.set_wedgeprops(wedgeprops)
         self.peak_selector.onselect = on_selected
@@ -525,3 +546,13 @@ class XPLPlotToolbar(NavigationToolbar, Gtk.Toolbar):
                   self._lastCursor != self.cursors.DRAG):
                 self.set_cursor(self.cursors.DRAG)
                 self._lastCursor = self.cursors.DRAG
+            elif self._active == "Add peak":
+                lims = self.peak_selector.limits
+                if lims[0] < event.xdata < lims[1]:
+                    if self._lastCursor != self.cursors.SELECT_REGION:
+                        self.set_cursor(self.cursors.SELECT_REGION)
+                        self._lastCursor = self.cursors.SELECT_REGION
+                else:
+                    if self._lastCursor != self.cursors.POINTER:
+                        self.set_cursor(self.cursors.POINTER)
+                        self._lastCursor = self.cursors.POINTER

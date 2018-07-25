@@ -5,15 +5,14 @@ all user accessible actions are defined."""
 # pylint: disable=logging-format-interpolation
 
 import re
-import os
 import logging
 
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gio, GLib, Gdk
-import numpy as np
 
-from xpl import __appname__, __version__, __authors__, __config__, COLORS
+from xpl import (__appname__, __version__, __authors__, __config__, __colors__,
+                 BASEDIR, CFG_PATH)
 import xpl
 from xpl.view import XPLView
 import xpl.fileio
@@ -49,22 +48,19 @@ def make_option(long_name, short_name=None, arg=GLib.OptionArg.NONE, **kwargs):
 class XPL(Gtk.Application):
     """Application class, this has action and signal callbacks."""
     # pylint: disable=arguments-differ
+    # pylint: disable=too-many-public-methods
     def __init__(self):
         logger.debug("instantiating application...")
         app_id = "org.{}.app".format(__appname__.lower())
         super().__init__(
             application_id=app_id,
             flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE
-            )
+        )
         GLib.set_application_name(__appname__)
 
         self.builder = Gtk.Builder.new_from_file(
-            os.path.join(__config__.get("general", "basedir"), "xpl.glade")
-            )
-        self.builder.add_from_file(
-            os.path.join(__config__.get("general", "basedir"),
-                         "menubar.ui")
-            )
+            str(BASEDIR / "xpl/xpl.glade"))
+        self.builder.add_from_file(str(BASEDIR / "xpl/menubar.ui"))
 
         self.dh = DataHandler()
         self.view = XPLView(self.builder, self.dh)
@@ -80,7 +76,7 @@ class XPL(Gtk.Application):
             make_option("--verbosity", "-v", arg=GLib.OptionArg.INT,
                         description="Value from 1 (only errors) to 4 (debug)"),
             make_option("--version", description="show program version"),
-            ])
+        ])
 
     def do_activate(self):
         """Creates MainWindow."""
@@ -95,10 +91,13 @@ class XPL(Gtk.Application):
             try:
                 self.open_project(fname)
             except FileNotFoundError:
+                self.dh.emit_init_ready()
                 logger.warning("File '{}' not found".format(fname))
                 __config__.set("io", "project_file", "None")
             else:
                 logger.info("loaded file {}".format(fname))
+        else:
+            self.dh.emit_init_ready()
 
         handlers = {
             "on_main_window_delete_event": self.on_quit,
@@ -106,8 +105,9 @@ class XPL(Gtk.Application):
             "on_calibration_spinbutton_adjustment_value_changed":
                 self.on_calibrate,
             "on_normalization_switch_activate": self.on_normalize,
-            "on_region_background_type_combo_changed": self.on_change_bgtype
-            }
+            "on_region_background_type_combo_changed": self.on_change_bgtype,
+            "on_peak_entry_activate": self.on_peak_entry_activate,
+        }
         handlers.update(self.win.handlers)
         self.builder.connect_signals(handlers)
 
@@ -126,19 +126,18 @@ class XPL(Gtk.Application):
             "remove-spectra": self.on_remove_spectra,
             "edit-spectra": self.on_edit_spectra,
             "remove-region": self.on_remove_region,
-            "delete-regions": self.on_delete_regions,
+            "clear-regions": self.on_clear_regions,
             "add-region": self.on_add_region,
             "add-peak": self.on_add_peak,
             "remove-peak": self.on_remove_peak,
             "clear-peaks": self.on_clear_peaks,
             "fit": self.on_fit,
             "quit": self.on_quit
-            }
+        }
         for name, callback in actions.items():
             simple = Gio.SimpleAction.new(name, None)
             simple.connect("activate", callback)
             self.add_action(simple)
-
 
     def do_command_line(self, command_line):
         """Handles command line arguments"""
@@ -189,6 +188,7 @@ class XPL(Gtk.Application):
         really_do_it = self.ask_for_save()
         if really_do_it:
             self.dh.clear_spectra()
+            self.win.set_title("{} - {}".format(__appname__, "Untitled"))
             __config__.set("io", "project_file", "None")
             logger.info("emptied datahandler, new project")
 
@@ -198,6 +198,7 @@ class XPL(Gtk.Application):
         fname = __config__.get("io", "project_file")
         if fname != "None":
             xpl.fileio.save_project(fname, self.dh)
+            self.win.set_title("{} - {}".format(__appname__, fname))
             logger.info("saved project file to {}".format(fname))
             return True
         return self.on_save_as(widget)
@@ -253,6 +254,7 @@ class XPL(Gtk.Application):
     def open_project(self, fname):
         """Load a project file."""
         xpl.fileio.load_project(fname, self.dh)
+        self.win.set_title("{} - {}".format(__appname__, fname))
         logger.info("opened project file {}".format(fname))
 
     def on_import_spectra(self, _widget, *_args):
@@ -286,63 +288,65 @@ class XPL(Gtk.Application):
                 else:
                     logger.warning("file {} not recognized".format(fname))
             for specdict in specdicts:
-                self.dh.add_spectrum(specdict)
+                self.dh.add_spectrum(**specdict)
         else:
             logger.debug("nothing selected to import")
         dialog.destroy()
 
     def on_remove_spectra(self, _widget, *_args):
         """Remove the selected spectra from the project."""
-        IDs = self.view.get_selected_spectra()
-        for ID in IDs:
-            self.dh.remove_spectrum(ID)
-            logger.info("removed spectrum with ID {}".format(ID))
+        spectrumIDs = self.view.get_selected_spectra()
+        for spectrumID in spectrumIDs:
+            self.dh.remove_spectrum(spectrumID)
+            logger.info("removed spectrum {}".format(spectrumID))
 
     def on_edit_spectra(self, _widget, *_args):
         """Edit the selected spectra."""
-        IDs = self.view.get_selected_spectra()
-        if not IDs:
+        spectrumIDs = self.view.get_selected_spectra()
+        if not spectrumIDs:
             logger.debug("no spectrum selected for editing")
             return
-        dialog = self.view.get_edit_spectra_dialog(IDs)
+        dialog = self.view.get_edit_spectra_dialog(spectrumIDs)
         response = dialog.run()
         if response == Gtk.ResponseType.APPLY:
             newdict = dialog.get_newdict()
-            for ID in IDs:
-                self.dh.amend_spectrum(ID, newdict)
-                logger.info("spectrum with ID {} amended".format(ID))
+            for spectrumID in spectrumIDs:
+                self.dh.amend_spectrum(spectrumID, **newdict)
+                logger.info("spectrum {} amended".format(spectrumID))
         dialog.hide()
 
     def on_add_region(self, _widget, *_args):
         """Adds a region to the currently selected spectrum."""
-        IDs = self.view.get_active_spectra()
-        if len(IDs) != 1:
+        spectrumIDs = self.view.get_active_spectra()
+        if len(spectrumIDs) != 1:
             return
+        spectrumID = spectrumIDs[0]
         def create_region(emin, emax):
             """Add region"""
-            ID = self.dh.add_region(
-                IDs[0],
+            regionID = self.dh.add_region(
+                spectrumID,
                 emin=emin,
                 emax=emax
             )
             logger.info("added region {} to spectrum {}"
-                        "".format(ID, IDs[0]))
-        rectprops = {"edgecolor": COLORS["region-vlines"], "linewidth": 2}
+                        "".format(regionID, spectrumID))
+        rectcolor = __colors__.get("plotting", "region-vlines")
+        rectprops = {"edgecolor": rectcolor, "linewidth": 2}
         plot_toolbar = self.builder.get_object("plot_toolbar")
         plot_toolbar.get_span(create_region, **rectprops)
 
     def on_remove_region(self, _widget, *_args):
         """Removes selected regions from the current spectrum."""
-        ID = self.view.get_active_region()
-        self.dh.remove_region(ID)
-        logger.info("removed region with ID {}".format(ID))
+        regionID = self.view.get_active_region()
+        self.dh.remove_region(regionID)
+        logger.info("removed region {}".format(regionID))
 
-    def on_delete_regions(self, _widget, *_args):
+    def on_clear_regions(self, _widget, *_args):
         """Delete regions from selected spectra."""
-        IDs = self.view.get_selected_spectra()
-        for ID in IDs:
-            self.dh.clear_regions(ID)
-        logger.info("removed all regions from spectra with IDs {}".format(IDs))
+        spectrumIDs = self.view.get_selected_spectra()
+        for spectrumID in spectrumIDs:
+            self.dh.clear_regions(spectrumID)
+        logger.info("removed all regions from spectra {}".format(spectrumIDs))
 
     def on_add_peak(self, *_args):
         """Adds a peak to the currently active region."""
@@ -357,53 +361,87 @@ class XPL(Gtk.Application):
             )
             logger.info("added peak {} to region {}".format(peakID, regionID))
         wedgeprops = {
-            "edgecolor": COLORS["peak-wedge-edge"],
-            "facecolor": COLORS["peak-wedge-face"]
+            "edgecolor": __colors__.get("plotting", "peak-wedge-edge"),
+            "facecolor": __colors__.get("plotting", "peak-wedge-face")
         }
         plot_toolbar = self.builder.get_object("plot_toolbar")
-        plot_toolbar.get_wedge(create_peak, **wedgeprops)
+        rmin = self.dh.get(regionID, "emin")
+        rmax = self.dh.get(regionID, "emax")
+        plot_toolbar.get_wedge(create_peak, **wedgeprops, limits=(rmin, rmax))
 
     def on_remove_peak(self, *_args):
         """Removes currently selected peak."""
-        ID = self.view.get_active_peak()
-        if ID is not None:
-            self.dh.remove_peak(ID)
-            logger.info("removed peak with ID {}".format(ID))
+        peakID = self.view.get_active_peak()
+        if peakID is not None:
+            self.dh.remove_peak(peakID)
+            logger.info("removed peak {}".format(peakID))
 
     def on_clear_peaks(self, *_args):
         """Removes all peaks from selected region."""
-        ID = self.view.get_active_region()
-        if ID is not None:
-            self.dh.clear_peaks(ID)
-            logger.info("removed all peaks from region with ID {}".format(ID))
+        regionID = self.view.get_active_region()
+        if regionID is not None:
+            self.dh.clear_peaks(regionID)
+            logger.info("removed all peaks from region {}".format(regionID))
 
     def on_smoothen(self, widget, *_args):
         """Smoothen selected spectra by value from widget Gtk.Adjustment."""
         smoothness = int(widget.get_value())
-        for ID in self.view.get_active_spectra():
-            self.dh.manipulate_spectrum(ID, smoothness=smoothness)
+        for spectrumID in self.view.get_active_spectra():
+            self.dh.manipulate_spectrum(spectrumID, smoothness=smoothness)
 
     def on_calibrate(self, widget, *_args):
         """Calibrate selectred spectrum energy axes by value from widget
         Gtk.Adjustment."""
         calibration = float(widget.get_value())
-        for ID in self.view.get_active_spectra():
-            self.dh.manipulate_spectrum(ID, calibration=calibration)
+        for spectrumID in self.view.get_active_spectra():
+            self.dh.manipulate_spectrum(spectrumID, calibration=calibration)
 
     def on_normalize(self, widget, *_args):
         """Normalizes selected spectra."""
         normalization = widget.get_active()
-        for ID in self.view.get_active_spectra():
-            self.dh.manipulate_spectrum(ID, norm=normalization)
+        for spectrumID in self.view.get_active_spectra():
+            self.dh.manipulate_spectrum(spectrumID, norm=normalization)
 
     def on_change_bgtype(self, combo, *_args):
         """Changes the background type to combo.get_active_text()."""
-        ID = self.view.get_active_region()
-        if ID:
-            self.dh.manipulate_region(ID, bgtype=combo.get_active_text())
+        regionID = self.view.get_active_region()
+        if regionID:
+            bgtype = combo.get_active_text()
+            self.dh.manipulate_region(regionID, bgtype=bgtype)
+
+    def on_peak_entry_activate(self, *_args):
+        """Apply constraint strings from peak entries."""
+        peakID = self.view.get_active_peak()
+        def apply_constraint_string(c_string, param):
+            """Applies the text of a param_entry to the model."""
+            if not c_string:
+                self.dh.constrain_peak(peakID, param)
+            elif "<" in c_string or ">" in c_string:
+                try:
+                    min_ = float(c_string.split(">")[1].split()[0])
+                except IndexError:
+                    min_ = None
+                try:
+                    max_ = float(c_string.split("<")[1].split()[0])
+                except IndexError:
+                    max_ = None
+                self.dh.constrain_peak(peakID, param, min_=min_, max_=max_)
+            elif "=" in c_string:
+                try:
+                    expr = c_string.split("=")[1].strip()
+                except IndexError:
+                    expr = None
+                self.dh.constrain_peak(peakID, param, expr=expr)
+        c_fwhm = self.builder.get_object("peak_fwhm_entry").get_text()
+        apply_constraint_string(c_fwhm, "fwhm")
+        c_fwhm = self.builder.get_object("peak_area_entry").get_text()
+        apply_constraint_string(c_fwhm, "area")
+        c_fwhm = self.builder.get_object("peak_position_entry").get_text()
+        apply_constraint_string(c_fwhm, "center")
 
     def on_fit(self, *_args):
         """Fits the current peaks."""
+        self.on_peak_entry_activate()
         regionID = self.view.get_active_region()
         if regionID:
             self.dh.fit_region(regionID)
@@ -419,8 +457,7 @@ class XPL(Gtk.Application):
         __config__.set("window", "ysize", str(ysize))
         __config__.set("window", "xpos", str(xpos))
         __config__.set("window", "ypos", str(ypos))
-        cfg_fname = __config__.get("general", "conf_filename")
-        with open(cfg_fname, "w") as cfg_file:
+        with open(CFG_PATH, "w") as cfg_file:
             logger.info("writing config file...")
             __config__.write(cfg_file)
         logger.info("quitting...")
@@ -453,6 +490,8 @@ class XPLAppWindow(Gtk.ApplicationWindow):
                 self.on_search_spectrum_view,
             "on_spectrum_view_button_press_event":
                 self.on_spectrum_view_clicked,
+            "on_peak_view_row_activated":
+                self.on_peak_view_row_activated,
             "on_region_chooser_combo_changed":
                 self.on_region_chooser_changed
             }
@@ -468,6 +507,17 @@ class XPLAppWindow(Gtk.ApplicationWindow):
             simple = Gio.SimpleAction.new(name, None)
             simple.connect("activate", callback)
             self.add_action(simple)
+        toggle_appearance_actions = {
+            "toggle-bg": "region-background",
+            "toggle-peaks": "peak",
+            "toggle-region-vlines": "region-boundaries"
+        }
+        for name, keyword in toggle_appearance_actions.items():
+            simple_toggle = Gio.SimpleAction.new_stateful(
+                name, None, GLib.Variant.new_boolean(True))
+            simple_toggle.connect(
+                "change-state", self.on_toggle_appearance, keyword)
+            self.add_action(simple_toggle)
 
     def set_helpers(self, builder, view):
         """Sets the builder because this class does not get any construtor
@@ -495,28 +545,42 @@ class XPLAppWindow(Gtk.ApplicationWindow):
 
     def on_region_chooser_changed(self, combo):
         """Sets chosen region in the view."""
+        if not combo.has_focus():
+            return
         regionID = combo.get_active_id()
         if regionID is not None:
             regionID = int(regionID)
         self.view.activate_region(regionID)
 
-    def on_spectrum_view_clicked(self, _treeview, event):
+    def on_spectrum_view_clicked(self, treeview, event):
         """Callback for button-press-event, popups the menu on right click
         and calls show_selected for double left click. Return value
         determines if the selection on self persists, True if not."""
         if event.type == Gdk.EventType.BUTTON_PRESS and event.button == 3:
-            return self.view.pop_spectrum_menu(event)
+            self.view.pop_spectrum_menu(event)
+            pathinfo = treeview.get_path_at_pos(int(event.x), int(event.y))
+            if pathinfo is None:
+                return False
+            selected_rows = treeview.get_selection().get_selected_rows()[1]
+            return pathinfo[0] in selected_rows
         # pylint: disable=protected-access
         if event.type == Gdk.EventType._2BUTTON_PRESS and event.button == 1:
-            IDs = self.view.get_selected_spectra()
-            self.view.activate_spectra(IDs)
+            spectrumIDs = self.view.get_selected_spectra()
+            self.view.activate_spectra(spectrumIDs)
             return True
         return False
 
+    def on_peak_view_row_activated(self, _treeview, _path, _column):
+        """Callback for button-press-event, calls self.view.activate_peak()
+        on left (single!) click. Must return False so the clicked peak
+        will be selected."""
+        peakID = self.view.get_selected_peak()
+        self.view.activate_peak(peakID)
+
     def on_show_selected_spectra(self, _widget, *_ignore):
         """Shows the spectra selected in the treeview in the canvas."""
-        IDs = self.view.get_selected_spectra()
-        self.view.activate_spectra(IDs)
+        spectrumIDs = self.view.get_selected_spectra()
+        self.view.activate_spectra(spectrumIDs)
 
     def on_pan_plot(self, _widget, *_ignore):
         """Activates plot panning."""
@@ -552,6 +616,12 @@ class XPLAppWindow(Gtk.ApplicationWindow):
             entry.set_text("")
             self.view.show_rsf([], "")
         dialog.hide()
+
+    def on_toggle_appearance(self, action, state, keyword):
+        """Gets keywords and True/False if specific objects should be
+        plotted."""
+        action.set_state(state)
+        self.view.set_visible(keyword, bool(state))
 
     def on_about(self, _widget, *_ignore):
         """Show 'About' dialog."""

@@ -46,7 +46,7 @@ class FileParser():
         data["raw_dwelltime"] = float(header[1][7])
         data["pass_energy"] = float(header[1][9])
         data["notes"] = header[1][12]
-        data["name"] = "Region {}".format(data["eis_region"])
+        data["name"] = ""
         data["int_time"] = data["raw_dwelltime"] * data["raw_sweeps"]
         data["cps"] = data["raw_intensity"] / data["int_time"]
         if header[3][0] != "1":
@@ -56,7 +56,7 @@ class FileParser():
     @staticmethod
     def unpack_eistxt(fname):
         """Splits Omicron EIS txt file."""
-        xydir = __config__.get("general", "xydir")
+        xydir = __config__.get("io", "xydir")
         if not os.path.isdir(xydir):
             os.mkdir(os.path.dirname(xydir))
         splitregex = re.compile(r"^Region.*")
@@ -183,7 +183,7 @@ def load_project(fname, datahandler):
 #                             "sweeps": spectrum[5],
 #                             "dwelltime": spectrum[6],
 #                             "passenergy": spectrum[7],
-#                             "visibility": "",   #TODO: delete tag
+#                             "visibility": "",
 #                             "energy": pickle.loads(spectrum[9]),
 #                             "intensity": pickle.loads(spectrum[10]),
 #                             "regions": pickle.loads(spectrum[11])}
@@ -268,7 +268,7 @@ class RSFHandler():
                "Mg": 1253.4}
 
     def __init__(self, filename):
-        self.filename = filename
+        self.filename = str(filename)
 
     def get_element(self, element, source):
         """Gets binding energies, rsf and orbital name for specific

@@ -4,6 +4,7 @@
 # pylint: disable=logging-format-interpolation
 
 import logging
+import re
 
 # import numpy as np
 from lmfit import Parameters
@@ -41,8 +42,8 @@ class RegionFitModelIface(object):
 
         if peak.model_name == "PseudoVoigt":
             model = PseudoVoigtModel(prefix=peak.prefix)
-            model.set_param_hint("sigma", value=2, min=1e-5, max=5)
-            model.set_param_hint("amplitude", value=2000, min=0)
+            # model.set_param_hint("sigma", value=2, min=1e-5, max=5)
+            # model.set_param_hint("amplitude", value=2000, min=0)
             model.set_param_hint("fraction", vary=False)
         else:
             raise NotImplementedError("Only PseudoVoigt models supported")
@@ -137,8 +138,7 @@ class RegionFitModelIface(object):
         return results
 
     # pylint: disable=too-many-arguments
-    def add_constraint(self, peak, attr, min_=None, max_=None, vary=None,
-                       expr=None, value=None):
+    def set_constraints(self, peak, attr, value, vary, min_, max_, expr):
         """Adds a constraint to a Peak parameter."""
         if peak.model_name == "PseudoVoigt":
             names = {
@@ -156,16 +156,37 @@ class RegionFitModelIface(object):
                     expr += "/ 2"
         else:
             raise NotImplementedError("Only PseudoVoigt models supported")
-        paramname = "{}{}".format(peak.prefix, names[attr])
-        self._params[paramname].set(
-            min=min_,
-            max=max_,
-            vary=vary,
-            expr=expr,
-            value=value
-        )
 
-    def get_constraint(self, peak, attr, argname):
+        if expr:
+            def peakrepl(matchobj):
+                """Replaces peak.label by peak.prefix_param."""
+                label = matchobj.group(0).title()
+                other_peak = self._region.get_peak_by_label(label)
+                if other_peak is None or other_peak == peak:
+                    return ""
+                return "{}{}".format(other_peak.prefix, names[attr])
+            expr = re.sub(r"P\d+", peakrepl, expr)
+
+        paramname = "{}{}".format(peak.prefix, names[attr])
+        try:
+            self._params[paramname].set(
+                min=min_,
+                max=max_,
+                vary=vary,
+                expr=expr,
+                value=value
+            )
+        except SyntaxError:
+            self._params[paramname].set(
+                min=min_,
+                max=max_,
+                vary=vary,
+                expr="",
+                value=value
+            )
+            logger.WARNING("invalid expression '{}'".format(expr))
+
+    def get_constraints(self, peak, attr):
         """Returns a string containing min/max or expr."""
         if peak.model_name == "PseudoVoigt":
             names = {
@@ -174,23 +195,31 @@ class RegionFitModelIface(object):
                 "center": "center"}
         else:
             raise NotImplementedError("Only PseudoVoigt models supported")
+        constraints = {}
+
         paramname = "{}{}".format(peak.prefix, names[attr])
-        min_ = self._params[paramname].min
-        max_ = self._params[paramname].max
-        _vary = self._params[paramname].vary
-        expr = self._params[paramname].expr
+        constraints["min_"] = self._params[paramname].min
+        constraints["max_"] = self._params[paramname].max
+        constraints["vary"] = self._params[paramname].vary
+        constraints["expr"] = self._params[paramname].expr
         if attr == "fwhm":
-            min_ *= 2
-            max_ *= 2
-            if expr:
-                if expr[-3:] == "/ 2":
-                    expr = expr[:-3]
-        if argname == "min":
-            return min_
-        if argname == "max":
-            return max_
-        if argname == "expr":
-            if expr is None:
-                return ""
-            return expr
-        return None
+            constraints["min_"] *= 2
+            constraints["max_"] *= 2
+            if constraints["expr"] and constraints["expr"][-3:] == "/ 2":
+                constraints["expr"] = constraints["expr"][:-3]
+
+        if constraints["expr"]:
+            def peakrepl(matchobj):
+                """Replaces peak.label by peak.prefix_param."""
+                prefix = matchobj.group(0).split("_")[0] + "_"
+                other_peak = self._region.get_peak_by_prefix(prefix)
+                if other_peak is None or other_peak == peak:
+                    return ""
+                return other_peak.label
+            constraints["expr"] = re.sub(
+                r"p\d+_[a-zA-Z_]+",
+                peakrepl,
+                constraints["expr"]
+            )
+
+        return constraints

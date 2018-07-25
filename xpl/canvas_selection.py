@@ -17,9 +17,12 @@ class PeakSelector(_SelectorWidget):
     # pylint: disable=attribute-defined-outside-init
     def __init__(self, ax, onselect, minfwhm=None, minamp=None, useblit=False,
                  wedgeprops=None, onmove_callback=None, peak_stays=False,
-                 button=None):
+                 button=None, limits=None):
         _SelectorWidget.__init__(
             self, ax, onselect, useblit=useblit, button=button)
+
+        if minfwhm is not None or minamp is not None:
+            raise NotImplementedError
 
         if wedgeprops is None:
             wedgeprops = dict(facecolor='red', alpha=0.5, fill=True)
@@ -28,6 +31,10 @@ class PeakSelector(_SelectorWidget):
 
         self.wedge = None
         self.pressv = None
+
+        if limits is None:
+            limits = (-np.inf, np.inf)
+        self.limits = limits
 
         self.wedgeprops = wedgeprops
         self.onmove_callback = onmove_callback
@@ -70,12 +77,20 @@ class PeakSelector(_SelectorWidget):
         self.wedgeprops = wedgeprops
         self.new_axes(self.ax)
 
+    def set_limits(self, limits):
+        """Sets new limits. Peak will only be drawn when press event occurs
+        inside these x values."""
+        self.limits = limits
+
     def ignore(self, event):
         """return *True* if *event* should be ignored"""
         return _SelectorWidget.ignore(self, event) or not self.visible
 
     def _press(self, event):
         """on button press event"""
+        x0, y0 = self._get_data(event)
+        if not self.limits[0] <= x0 <= self.limits[1]:
+            return True
         self.wedge.set_visible(self.visible)
         if self.peak_stays:
             self.stay_wedge.set_visible(False)
@@ -83,7 +98,6 @@ class PeakSelector(_SelectorWidget):
             # the blit background
             if self.useblit:
                 self.canvas.draw()
-        x0, y0 = self._get_data(event)
         self.pressv = (x0, y0)
         self.wedge.set_center((x0, y0))
         return False
@@ -111,8 +125,6 @@ class PeakSelector(_SelectorWidget):
 
         x, y = self._get_data(event)
         angle = abs(np.arctan((x - x0) / (y - y0)))
-
-        # TODO: control minamp, minfwhm stuff
 
         self.onselect(center, amplitude, angle)
         self.pressv = None
