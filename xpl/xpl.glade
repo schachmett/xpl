@@ -19,6 +19,7 @@
     <property name="pixbuf">../assets/atom_lib.png</property>
   </object>
   <object class="GtkAdjustment" id="calibration_spinbutton_adjustment">
+    <property name="lower">-1000</property>
     <property name="upper">1000</property>
     <property name="step_increment">0.10000000000000001</property>
     <property name="page_increment">1</property>
@@ -406,6 +407,7 @@
                                     </child>
                                     <child>
                                       <object class="GtkScale" id="smoothing_scale">
+                                        <property name="width_request">200</property>
                                         <property name="visible">True</property>
                                         <property name="can_focus">True</property>
                                         <property name="adjustment">smoothing_scale_adjustment</property>
@@ -441,20 +443,6 @@
                                         <property name="expand">False</property>
                                         <property name="fill">True</property>
                                         <property name="position">1</property>
-                                      </packing>
-                                    </child>
-                                    <child>
-                                      <object class="GtkButton" id="calibration_select_button">
-                                        <property name="label" translatable="yes">b</property>
-                                        <property name="visible">True</property>
-                                        <property name="can_focus">True</property>
-                                        <property name="receives_default">True</property>
-                                      </object>
-                                      <packing>
-                                        <property name="expand">False</property>
-                                        <property name="fill">True</property>
-                                        <property name="padding">3</property>
-                                        <property name="position">2</property>
                                       </packing>
                                     </child>
                                     <child>
@@ -498,12 +486,14 @@
                                     </child>
                                     <child>
                                       <object class="GtkSwitch" id="normalization_switch">
+                                        <property name="width_request">70</property>
                                         <property name="visible">True</property>
                                         <property name="can_focus">True</property>
+                                        <property name="halign">center</property>
                                         <signal name="state-set" handler="on_normalization_switch_activate" swapped="no"/>
                                       </object>
                                       <packing>
-                                        <property name="expand">False</property>
+                                        <property name="expand">True</property>
                                         <property name="fill">True</property>
                                         <property name="position">1</property>
                                       </packing>

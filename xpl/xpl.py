@@ -254,6 +254,7 @@ class XPL(Gtk.Application):
 
     def open_project(self, fname):
         """Load a project file."""
+        self.view.activate_spectra([])
         xpl.fileio.load_project(fname, self.dh)
         self.win.set_title("{} - {}".format(__appname__, fname))
         logger.info("opened project file {}".format(fname))

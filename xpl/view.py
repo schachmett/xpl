@@ -515,7 +515,6 @@ class XPLCanvasInterface():
             }
             self._ax.plot(energy, cps, **lineprops)
 
-        erange = max(energy) - min(energy)
         self._fig.update_xy_centerlims(
             min(energy),
             max(energy),
