@@ -16,7 +16,7 @@ from gi.repository import GLib
 
 
 __appname__ = "XPL"
-__version__ = "0.3"
+__version__ = "0.8"
 __authors__ = ["Simon Fischer <sfischer@ifp.uni-bremen.de>"]
 
 BASEDIR = Path(os.path.realpath(__file__)).parents[1]
