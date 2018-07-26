@@ -6,3 +6,5 @@ dist/
 *old_*
 *~
 *.backup
+build
+dist

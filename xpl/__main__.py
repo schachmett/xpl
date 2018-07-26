@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Starts the program."""
 
 import signal
