@@ -324,10 +324,12 @@ class XPLPlotToolbar(NavigationToolbar, Gtk.Toolbar):
             self.cursors.DRAG: Gdk.Cursor.new(Gdk.CursorType.SB_H_DOUBLE_ARROW)
         }
 
-    def reinit(self, canvas, messagelabel):
+    def reinit(self, canvas, messagelabel, coordlabel):
         """Call the real super __init__ after the canvas is known and give
         it to this function."""
         self.message = messagelabel
+        self.mode_label = messagelabel
+        self.xy_label = coordlabel
         super().__init__(canvas, None)
 
         self.span_selector = SpanSelector(
@@ -534,6 +536,17 @@ class XPLPlotToolbar(NavigationToolbar, Gtk.Toolbar):
                 self.canvas.widgetlock.release(self.span_selector)
             except ValueError:
                 self.canvas.widgetlock.release(self.peak_selector)
+
+    def mouse_move(self, event):
+        self._set_cursor(event)
+        if event.inaxes and event.inaxes.get_navigate():
+            try:
+                s = event.inaxes.format_coord(event.xdata, event.ydata)
+                self.xy_label.set_markup("<tt>{}</tt>".format(s))
+            except (ValueError, OverflowError):
+                pass
+        if self.mode:
+            self.mode_label.set_text("{}".format(self.mode))
 
     def set_cursor(self, cursor):
         self.canvas.get_property("window").set_cursor(self.cursord[cursor])

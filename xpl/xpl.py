@@ -6,13 +6,15 @@ all user accessible actions are defined."""
 
 import re
 import logging
+import sys
+import os
 
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gio, GLib, Gdk
 
 from xpl import (__appname__, __version__, __authors__, __config__, __colors__,
-                 BASEDIR, CFG_PATH)
+                 BASEDIR, COLOR_CFG_PATH, CFG_PATH, LOG_PATH)
 import xpl
 from xpl.view import XPLView
 import xpl.fileio
@@ -20,9 +22,7 @@ from xpl.datahandler import DataHandler
 
 # imports for Gtk.Builder:
 # pylint: disable=unused-import
-from xpl.gui import XPLSpectrumTreeStore
-from xpl.gui import EditSpectrumDialogAttributeBox
-from xpl.gui import XPLPlotToolbar
+import xpl.gui
 # pylint: enable=unused-import
 
 logger = logging.getLogger(__name__)
@@ -510,15 +510,17 @@ class XPLAppWindow(Gtk.ApplicationWindow):
                 self.on_peak_view_row_activated,
             "on_region_chooser_combo_changed":
                 self.on_region_chooser_changed
-            }
+        }
         actions = {
             "about": self.on_about,
             "show-selected-spectra": self.on_show_selected_spectra,
             "show-atomlib": self.on_show_atomlib,
             "center-plot": self.on_center_plot,
             "pan-plot": self.on_pan_plot,
-            "zoom-plot": self.on_zoom_plot
-            }
+            "zoom-plot": self.on_zoom_plot,
+            "view-logfile": self.on_view_logfile,
+            "edit-colors": self.on_edit_colors
+        }
         for name, callback in actions.items():
             simple = Gio.SimpleAction.new(name, None)
             simple.connect("activate", callback)
@@ -544,11 +546,13 @@ class XPLAppWindow(Gtk.ApplicationWindow):
 
         statusbar = self.builder.get_object("statusbar")
         self.statusbar_id = statusbar.get_context_id("")
+        self.__connect_loggers_to_display()
 
         plot_toolbar = self.builder.get_object("plot_toolbar")
         plot_toolbar_message = self.builder.get_object("mpl_message_label")
+        plot_toolbar_coord = self.builder.get_object("mpl_coord_label")
         canvas = self.builder.get_object("main_canvas")
-        plot_toolbar.reinit(canvas, plot_toolbar_message)
+        plot_toolbar.reinit(canvas, plot_toolbar_message, plot_toolbar_coord)
 
     def on_search_spectrum_view(self, _widget):
         """Applies search term from entry.get_text() to the TreeView in column
@@ -646,14 +650,68 @@ class XPLAppWindow(Gtk.ApplicationWindow):
         dialog.set_authors(__authors__)
         dialog.set_version(__version__)
         dialog.set_license_type(Gtk.License.GPL_3_0)
+        commentstring = """If you encounter any bugs, mail me or open an
+                        issue on my github. Please include a logfile, it is
+                        located at '{}'.
+                        """.format(LOG_PATH)
+        commentstring = " ".join(commentstring.split())
+        dialog.set_website("https://github.com/schachmett/xpl")
+        dialog.set_comments(commentstring)
         dialog.run()
         dialog.hide()
 
-    def display(self, message):
+    @staticmethod
+    def on_view_logfile(_action, *_args):
+        """Views logfile in external text editor."""
+        if sys.platform.startswith("linux"):
+            os.system("xdg-open {}".format(LOG_PATH))
+        else:
+            logger.warning("logfile viewing only implemented for linux")
+
+    @staticmethod
+    def on_edit_colors(_action, *_args):
+        """Views colors.ini file in external text editor."""
+        if sys.platform.startswith("linux"):
+            os.system("xdg-open {}".format(COLOR_CFG_PATH))
+        else:
+            logger.warning("color file editing only implemented for linux")
+
+    def display(self, message, dolog=True, timetolive=3):
         """Displays a message in the statusbar."""
-        logger.info("statusbar message: {}".format(message))
+        if dolog:
+            logger.info("statusbar message: {}".format(message))
         statusbar = self.builder.get_object("statusbar")
-        statusbar.push(self.statusbar_id, message)
+        message_id = statusbar.push(self.statusbar_id, message)
+        def erase_message():
+            """Pop message from statusbar."""
+            statusbar.remove(self.statusbar_id, message_id)
+            return False
+        GLib.timeout_add_seconds(timetolive, erase_message)
+
+    def __connect_loggers_to_display(self):
+        """Makes a custom log handler using self.display and connects
+        it to rootlogger and ExceptionLogger.
+        """
+        displayfunc = self.display
+        class DisplayFormatter(logging.Formatter):
+            """Simplest logging Formatter ever."""
+            def format(self, record):
+                """Simplest formatting ever."""
+                string = "{}: {}".format(record.levelname.lower(), record.msg)
+                return string
+
+        class DisplayHandler(logging.Handler):
+            """Logging Handler that uses statusbar display."""
+            def emit(self, record):
+                """Push message to statusbar."""
+                message = self.format(record)
+                displayfunc(message)
+
+        handler = DisplayHandler()
+        handler.setLevel(logging.WARNING)
+        handler.setFormatter(DisplayFormatter())
+        logging.getLogger().addHandler(handler)
+        logging.getLogger("ExceptionLogger").addHandler(handler)
 
 
 class SimpleFileFilter(Gtk.FileFilter):

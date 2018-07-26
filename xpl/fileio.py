@@ -1,13 +1,19 @@
 """Manages database file and has import filters."""
+# pylint: disable=invalid-name
+# pylint: disable=logging-format-interpolation
 
 import re
 import os
 import pickle
 import sqlite3
+import logging
 
 import numpy as np
 
 from xpl import __config__
+
+
+logger = logging.getLogger(__name__)
 
 
 class FileParser():
@@ -24,9 +30,9 @@ class FileParser():
                 parsed = self.parse_xymfile(xymfile)
                 spectra.append(parsed)
         elif fname.split(".")[-1] == "xy":
-            print("parsing {} not yet implemented".format(fname))
+            logger.warning("parsing {} not yet implemented".format(fname))
         else:
-            print("file {} not recognized".format(fname))
+            logger.warning("file {} not recognized".format(fname))
         return spectra
 
     @staticmethod

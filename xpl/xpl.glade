@@ -1208,12 +1208,36 @@
             <property name="margin_start">10</property>
             <property name="margin_end">10</property>
             <child>
-              <object class="GtkLabel" id="mpl_message_label">
+              <object class="GtkBox">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
-                <property name="ellipsize">end</property>
-                <property name="width_chars">40</property>
-                <property name="max_width_chars">40</property>
+                <child>
+                  <object class="GtkLabel" id="mpl_message_label">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="ellipsize">end</property>
+                    <property name="width_chars">20</property>
+                    <property name="max_width_chars">20</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="position">0</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="mpl_coord_label">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="width_chars">35</property>
+                    <property name="max_width_chars">35</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="position">1</property>
+                  </packing>
+                </child>
               </object>
               <packing>
                 <property name="expand">False</property>
