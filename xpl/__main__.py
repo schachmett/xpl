@@ -8,7 +8,7 @@ try:
     from gi.repository import GLib
 except ImportError:
     print("-" * 79)
-    print("please sudo apt install python-gi")
+    print("please do sudo apt install python-gi")
     print("-" * 79)
     raise
 

@@ -64,7 +64,7 @@ class FileParser():
         """Splits Omicron EIS txt file."""
         xydir = __config__.get("io", "xydir")
         if not os.path.isdir(xydir):
-            os.mkdir(os.path.dirname(xydir))
+            os.mkdir(xydir)
         splitregex = re.compile(r"^Region.*")
         skipregex = re.compile(r"^[0-9]*\s*False\s*0\).*")
         fnamelist = []
