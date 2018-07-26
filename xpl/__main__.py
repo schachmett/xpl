@@ -4,7 +4,13 @@
 import signal
 import sys
 
-from gi.repository import GLib
+try:
+    from gi.repository import GLib
+except ImportError:
+    print("-" * 79)
+    print("please sudo apt install python-gi")
+    print("-" * 79)
+    raise
 
 from xpl import __config__
 from xpl.xpl import XPL
@@ -20,8 +26,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# TODO fitting is broken
-# TODO get code directory for assets and glade files
-# TODO make ID names meaningful
-# TODO: diagram and disentangling of components

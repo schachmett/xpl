@@ -13,11 +13,11 @@ import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gio, GLib, Gdk
 
-from xpl import (__appname__, __version__, __authors__, __config__, __colors__,
+from xpl import (__appname__, __version__, __authors__, __website__,
+                 __config__, __colors__,
                  BASEDIR, COLOR_CFG_PATH, CFG_PATH, LOG_PATH)
-import xpl
 from xpl.view import XPLView
-import xpl.fileio
+import xpl.fileio as fileio
 from xpl.datahandler import DataHandler
 
 # imports for Gtk.Builder:
@@ -65,7 +65,7 @@ class XPL(Gtk.Application):
         self.dh = DataHandler()
         self.view = XPLView(self.builder, self.dh)
         self.view.set_region_boundary_setter(self.dh.manipulate_region)
-        self.parser = xpl.fileio.FileParser()
+        self.parser = fileio.FileParser()
 
         statusbar = self.builder.get_object("statusbar")
         self.statusbar_id = statusbar.get_context_id("")
@@ -199,7 +199,7 @@ class XPL(Gtk.Application):
         name is not set."""
         fname = __config__.get("io", "project_file")
         if fname != "None":
-            xpl.fileio.save_project(fname, self.dh)
+            fileio.save_project(fname, self.dh)
             self.win.set_title("{} - {}".format(__appname__, fname))
             logger.info("saved project file to {}".format(fname))
             return True
@@ -256,7 +256,7 @@ class XPL(Gtk.Application):
     def open_project(self, fname):
         """Load a project file."""
         self.view.activate_spectra([])
-        xpl.fileio.load_project(fname, self.dh)
+        fileio.load_project(fname, self.dh)
         self.win.set_title("{} - {}".format(__appname__, fname))
         logger.info("opened project file {}".format(fname))
 
@@ -655,7 +655,7 @@ class XPLAppWindow(Gtk.ApplicationWindow):
                         located at '{}'.
                         """.format(LOG_PATH)
         commentstring = " ".join(commentstring.split())
-        dialog.set_website("https://github.com/schachmett/xpl")
+        dialog.set_website(__website__)
         dialog.set_comments(commentstring)
         dialog.run()
         dialog.hide()
