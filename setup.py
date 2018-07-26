@@ -34,7 +34,15 @@ setup(
     ],
     python_requires="~=3.5",
     package_data={
-        "assets": ["atom_lib.png", "logo.svg", "logo48.png", "pan.png"],
-        "xpl": ["menubar.ui", "rsf.db", "xpl.glade", "xpl_catalog.xml"]
+        "xpl": [
+            "menubar.ui",
+            "rsf.db",
+            "xpl.glade",
+            "xpl_catalog.xml",
+            "assets/atom_lib.png",
+            "assets/logo.svg",
+            "assets/logo48.png"
+            "assets/pan.png"
+        ]
     }
 )

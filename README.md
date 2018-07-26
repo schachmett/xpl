@@ -5,34 +5,24 @@ XPL is a tool for plotting and analyzing X-ray photoelectron spectroscopy (XPS) 
 
 ## Installation
 ### Ubuntu
-Install libffi and python-gi through apt (also, if you should not already have it, install python and git). After that, install the python module requirements.
+
+If you don't already have it installed, install python and pip as well as libffi6 and pythongi through apt.
 
 ```shell
-$ sudo apt install python3 pip3 git
+$ sudo apt install python3 pip3
 $ sudo apt install libffi6 python3-gi
-$ pip3 install numpy matplotlib cairocffi lmfit
+$ pip3 install xpl
 ```
 
-Clone the github repo and make `main.py` executable.
+To start xpl, run it as a module. On starting, XPL creates a `~/.config/xpl` folder where configuration files and converted spectrum files will be stored.
 
 ```shell
-$ git clone https://github.com/schachmett/xpl
-$ cd xpl
-$ sudo chmod +x main.py
+$ python3 -m xpl
 ```
 
+## Usage
 
-## Starting
-
-Just run `main.py`. On starting, XPL creates a `~/.xpl` folder where configuration files and converted spectrum files will be stored.
-
-```shell
-./main.py
-```
-
-# Usage
-
-You can import spectra by clicking the plus icon in the main toolbar. So far, only exportet ```.txt``` files from the EIS Omicron software can be parsed.
+You can import spectra by clicking the plus icon in the main toolbar. So far, only exportet `.txt` files from the EIS Omicron software can be parsed.
 
 When the "Spectra" tab is selected, you can choose the spectra to view by selecting them, right clicking and clicking "Plot selected spectra". The rightmost icon in the top toolbar lets you select elements whose peak positions should be displayed (see screenshot).
 
@@ -40,7 +30,7 @@ When the "Spectra" tab is selected, you can choose the spectra to view by select
 
 In the fitting tab, you can first add one or more regions by clicking "+" next to "Regions", then dragging across the Plot View. 
 
-When a region is selected, you can add peaks by clicking "+" next to "Peaks" and drawing them by dragging from the peak maximum downwards inside the selected region. After this, you can constrain the peak values in the bottommost three entries: They accept input either like ```< min > max``` where ```min``` and ```max``` are minimum and maximum values for the corresponding parameter, or like ```= expression``` where ```expression``` can be a simple arithmetic expression. A relation to the same parameter of another peak can be expressed by using their label (see screenshot below).
+When a region is selected, you can add peaks by clicking "+" next to "Peaks" and drawing them by dragging from the peak maximum downwards inside the selected region. After this, you can constrain the peak values in the bottommost three entries: They accept input either like `< min > max` where `min` and `max` are minimum and maximum values for the corresponding parameter, or like `= expression` where `expression` can be a simple arithmetic expression. A relation to the same parameter of another peak can be expressed by using their label (see screenshot below).
 
 ![Screenshot](doc/demo_fitting.png "Fitting Ag3d peaks")
 
