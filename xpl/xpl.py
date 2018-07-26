@@ -131,6 +131,7 @@ class XPL(Gtk.Application):
             "add-peak": self.on_add_peak,
             "remove-peak": self.on_remove_peak,
             "clear-peaks": self.on_clear_peaks,
+            "avg-selected-spectra": self.on_avg_selected_spectra,
             "fit": self.on_fit,
             "quit": self.on_quit
         }
@@ -355,12 +356,20 @@ class XPL(Gtk.Application):
         regionID = self.view.get_active_region()
         def create_peak(center, height, angle):
             """Add peak"""
-            peakID = self.dh.add_peak(
-                regionID,
-                totalheight=height,
-                angle=angle,
-                center=center
-            )
+            if self.view.get_visible("region-background"):
+                peakID = self.dh.add_peak(
+                    regionID,
+                    totalheight=height,
+                    angle=angle,
+                    center=center
+                )
+            else:
+                peakID = self.dh.add_peak(
+                    regionID,
+                    height=height,
+                    angle=angle,
+                    center=center
+                )
             logger.info("added peak {} to region {}".format(peakID, regionID))
         wedgeprops = {
             "edgecolor": __colors__.get("plotting", "peak-wedge-edge"),
@@ -403,6 +412,11 @@ class XPL(Gtk.Application):
         normalization = widget.get_active()
         for spectrumID in self.view.get_active_spectra():
             self.dh.manipulate_spectrum(spectrumID, norm=normalization)
+
+    def on_avg_selected_spectra(self, _action, *_args):
+        """Averages selected spectra and adds that average."""
+        spectrumIDs = self.view.get_selected_spectra()
+        self.dh.add_averaged_spectrum(spectrumIDs)
 
     def on_change_bgtype(self, combo, *_args):
         """Changes the background type to combo.get_active_text()."""

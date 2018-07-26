@@ -221,6 +221,43 @@ class DataHandler(BaseDataHandler):
         self.altered = True
         return spectrum.ID
 
+    def add_averaged_spectrum(self, spectrumIDs):
+        """Adds a new spectrum which is the average of the given ones."""
+        for spectrumID in spectrumIDs:
+            self.isspectrum(spectrumID)
+        spectra = [self._idbook[spectrumID] for spectrumID in spectrumIDs]
+        first_energy = spectra[0].get("raw_energy")
+        for spectrum in spectra:
+            if any(spectrum.get("raw_energy") != first_energy):
+                logger.warning("spectra {} averaging failed: energies"
+                               "don't match".format(spectrumIDs))
+                return None
+        energy = first_energy
+        raw_intensity = np.sum(
+            [s.get("cps") * s.get("int_time") for s in spectra], axis=0)
+        raw_sweeps = np.sum([s.get("raw_sweeps") for s in spectra])
+        int_time = np.sum([s.get("int_time") for s in spectra])
+        pass_energies = [s.get("pass_energy") for s in spectra]
+        pass_energy = pass_energies[0] if len(set(pass_energies)) == 1 else 0
+        notes = ", ".join([s.get("name") for s in spectra])
+        specdict = {
+            "filename": "created_by_XPL",
+            "energy": energy,
+            "raw_intensity": raw_intensity,
+            "raw_sweeps": raw_sweeps,
+            "int_time": int_time,
+            "cps": raw_intensity / int_time,
+            "raw_dwelltime": int_time / raw_sweeps,
+            "pass_energy": pass_energy,
+            "notes": notes,
+        }
+        spectrum = Spectrum(**specdict)
+        spectrum.name = "AVG{}".format(spectrum.ID)
+        self._spectra.append(spectrum)
+        self._emit("added-spectrum", spectrum.ID)
+        self.altered = True
+        return spectrum.ID
+
     def remove_spectrum(self, spectrumID):
         """Removes spectrum that is identified by ID."""
         assert self.isspectrum(spectrumID)
@@ -442,23 +479,26 @@ class Spectrum(XPLContainer):
         "name": "",
         "notes": "",
         "filename": "",
-        "int_time": 0,
-        "pass_energy": 0
+        "int_time": 1,
+        "raw_sweeps": 1,
+        "raw_dwelltime": 1,
+        "pass_energy": 0,
+        "eis_region": 0,
     }
 
     def __init__(self, **specdict):
         specdict["parent"] = None
         super().__init__(**specdict)
         self.type = "spectrum"
-        if not self.name:
+        if not self.name and self.get("eis_region"):
             self.name = "EIS Region {}".format(self.get("eis_region"))
 
-        self._raw_energy = specdict["energy"]
-        self.energy_c = copy.deepcopy(self._raw_energy)
-        self.energy = copy.deepcopy(self._raw_energy)
-        self._raw_cps = specdict["cps"]
-        self.cps_c = copy.deepcopy(self._raw_cps)
-        self.cps = copy.deepcopy(self._raw_cps)
+        self.raw_energy = specdict["energy"]
+        self.energy_c = copy.deepcopy(self.raw_energy)
+        self.energy = copy.deepcopy(self.raw_energy)
+        self.raw_cps = specdict["cps"]
+        self.cps_c = copy.deepcopy(self.raw_cps)
+        self.cps = copy.deepcopy(self.raw_cps)
 
         self.regions = []
         self.region_number = 1
@@ -469,7 +509,7 @@ class Spectrum(XPLContainer):
     def set(self, attr, value):
         """Overload set for some special attributes."""
         if attr in ("int_time",):
-            self._raw_cps = self._raw_cps / self.int_time * value
+            self.raw_cps = self.raw_cps / self.int_time * value
         super().set(attr, value)
         if attr in ("smoothness", "calibration", "norm", "int_time"):
             self.calculate_cps()
@@ -485,13 +525,13 @@ class Spectrum(XPLContainer):
         highest cps to 1 and shifts energy axis by calibration. The raw
         intensity values are kept."""
         if self.calibration:
-            self.energy_c = calibrate(self._raw_energy, self.calibration)
+            self.energy_c = calibrate(self.raw_energy, self.calibration)
         else:
-            self.energy_c = self._raw_energy
+            self.energy_c = self.raw_energy
         if self.norm:
-            self.cps_c = normalize(self._raw_cps, self.norm)
+            self.cps_c = normalize(self.raw_cps, self.norm)
         else:
-            self.cps_c = self._raw_cps
+            self.cps_c = self.raw_cps
         if self.smoothness:
             self.cps = smoothen(self.cps_c, self.smoothness)
         else:

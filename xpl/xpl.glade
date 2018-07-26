@@ -1687,8 +1687,8 @@ Please specify the X-ray source and give the symbols for the elements you want t
       <object class="GtkMenuItem">
         <property name="visible">True</property>
         <property name="can_focus">False</property>
-        <property name="action_name">app.clear-regions</property>
-        <property name="label" translatable="yes">_Delete regions</property>
+        <property name="action_name">app.avg-selected-spectra</property>
+        <property name="label" translatable="yes">Average selected</property>
         <property name="use_underline">True</property>
       </object>
     </child>
@@ -1704,6 +1704,15 @@ Please specify the X-ray source and give the symbols for the elements you want t
         <property name="can_focus">False</property>
         <property name="action_name">app.edit-spectra</property>
         <property name="label" translatable="yes">_Edit</property>
+        <property name="use_underline">True</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="action_name">app.clear-regions</property>
+        <property name="label" translatable="yes">_Delete regions</property>
         <property name="use_underline">True</property>
       </object>
     </child>

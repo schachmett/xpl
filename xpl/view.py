@@ -92,6 +92,7 @@ class XPLView():
         self._fitiface = XPLFitInterface(builder, datahandler)
         self._cviface = XPLCanvasInterface(builder, datahandler)
         self.set_visible = self._cviface.set_visible
+        self.get_visible = self._cviface.get_visible
 
         self.get_selected_spectra = self._tviface.get_selected_spectra
         self.get_active_spectra = lambda *args: ActiveIDs.SPECTRA
@@ -420,6 +421,12 @@ class XPLCanvasInterface():
         self._doplot[keyword] = bool(yesno)
         self.plot()
 
+    def get_visible(self, keyword):
+        """Returns if things that belong to keyword are visible."""
+        if keyword not in self._doplot:
+            raise TypeError("canvas: keyword '{}' unknown".format(keyword))
+        return self._doplot[keyword]
+
     def plot_only(self, IDs):
         """Plot only the given IDs."""
         self._plotIDs.clear()
@@ -455,6 +462,8 @@ class XPLCanvasInterface():
         self._update_active()
         # check if there actually is something to plot
         if not self._plotIDs:
+            self._draglines.clear()
+            self._ax.cla()
             self._fig.restore_xylims()
             self._canvas.draw_idle()
             self._navbar.disable_tools()
@@ -892,7 +901,7 @@ class XPLFitInterface():
 
     def _on_peak_changed(self, peakID, attr):
         """Refreshes peak param column."""
-        if attr not in PEAK_TITLES:
+        if attr not in PEAK_TITLES: #peak.name
             return
         col_index = self._peak_model.get_col_index(attr)
         value = str(self._dh.get(peakID, attr))
