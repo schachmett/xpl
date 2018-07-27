@@ -13,7 +13,7 @@ from string import ascii_uppercase
 import numpy as np
 
 from xpl.processing import (x_at_maximum, calibrate, normalize, smoothen,
-                            calculate_background, getspan)
+                            calculate_background)
 from xpl.fitter import RegionFitModelIface
 
 
@@ -388,6 +388,7 @@ class XPLContainer(object):
         self.type = "notype"
         for (attr, default) in self._defaults.items():
             setattr(self, attr, attrdict.get(attr, default))
+            print(attr)
 
         self.specdict_additional = dict([
             (attr, default) for (attr, default) in attrdict.items()
@@ -526,6 +527,9 @@ class Spectrum(XPLContainer):
         intensity values are kept."""
         if self.calibration:
             self.energy_c = calibrate(self.raw_energy, self.calibration)
+            for region in self.regions:
+                region.set("emin", region.emin)
+                region.set("emax", region.emax)
         else:
             self.energy_c = self.raw_energy
         if self.norm:
@@ -567,13 +571,10 @@ class Region(XPLContainer):
         super().__init__(**regiondict)
         self.type = "region"
 
+        # not superfluous, needed for properties
         self.spectrum = regiondict["spectrum"]
-        self.eminmax = (regiondict["emin"], regiondict["emax"])
-
-        self.energy, self.cps = getspan(
-            self.spectrum.energy_c,
-            self.spectrum.cps_c,
-            self.eminmax)
+        self.emin = regiondict["emin"]
+        self.emax = regiondict["emax"]
 
         self.bgtype = "shirley"
         self.background = None
@@ -590,28 +591,16 @@ class Region(XPLContainer):
     def set(self, attr, value):
         """Overload set for some special attributes."""
         if attr == "emin":
-            attr = "eminmax"
-            value = (value, self.eminmax[1])
+            if value < min(self.spectrum.energy):
+                value = min(self.spectrum.energy)
         elif attr == "emax":
-            attr = "eminmax"
-            value = (self.eminmax[0], value)
+            if value > max(self.spectrum.energy):
+                value = max(self.spectrum.energy)
         super().set(attr, value)
         if attr == "bgtype":
             self.calculate_bg(value)
-        if attr in ("spectrum", "eminmax"):
-            self.energy, self.cps = getspan(
-                self.spectrum.energy_c,
-                self.spectrum.cps_c,
-                self.eminmax)
+        if attr in ("spectrum", "emin", "emax"):
             self.calculate_bg(self.bgtype)
-
-    def get(self, attr):
-        """Overload get for emin/emax."""
-        if attr == "emin":
-            return self.eminmax[0]
-        if attr == "emax":
-            return self.eminmax[1]
-        return super().get(attr)
 
     def get_peak_by_label(self, peaklabel):
         """Returns the peak corresponding to peaklabel."""
@@ -637,6 +626,24 @@ class Region(XPLContainer):
         """Fits the sum of peaks to self._cps - self.background, then
         stores fit results."""
         self.model.fit()
+
+    @property
+    def energy(self):
+        """Energy slice from the spectrum."""
+        idx1, idx2 = sorted([
+            np.searchsorted(self.spectrum.energy_c, self.emin),
+            np.searchsorted(self.spectrum.energy_c, self.emax)
+        ])
+        return self.spectrum.energy_c[idx1:idx2]
+
+    @property
+    def cps(self):
+        """CPS slice from the spectrum."""
+        idx1, idx2 = sorted([
+            np.searchsorted(self.spectrum.energy_c, self.emin),
+            np.searchsorted(self.spectrum.energy_c, self.emax)
+        ])
+        return self.spectrum.cps_c[idx1:idx2]
 
     @property
     def fit_cps(self):

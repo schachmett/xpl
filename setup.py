@@ -25,6 +25,7 @@ setup(
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Topic :: Scientific/Engineering :: Physics"
     ),
+    license="GPLv3",
     keywords="physics XPS x-ray photoelectron spectroscopy chemistry",
     install_requires=[
         "matplotlib",
@@ -41,8 +42,12 @@ setup(
             "xpl_catalog.xml",
             "assets/atom_lib.png",
             "assets/logo.svg",
-            "assets/logo48.png"
+            "assets/logo48.png",
             "assets/pan.png"
         ]
-    }
+    },
+    data_files={
+        "share/applications": ["xpl/xpl.desktop"],
+        "share/icons": ["xpl/assets/xpl48.png"]
+    },
 )

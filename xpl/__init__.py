@@ -16,7 +16,7 @@ from gi.repository import GLib
 
 
 __appname__ = "XPL"
-__version__ = "0.8.1"
+__version__ = "0.8.2"
 __authors__ = ["Simon Fischer <sfischer@ifp.uni-bremen.de>"]
 __website__ = "https://github.com/schachmett/xpl"
 

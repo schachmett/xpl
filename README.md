@@ -14,11 +14,18 @@ $ sudo apt install libffi6 python3-gi
 $ pip3 install xpl
 ```
 
-To start xpl, run it as a module. On starting, XPL creates a `~/.config/xpl` folder where configuration files and converted spectrum files will be stored.
+On starting, XPL creates a `~/.config/xpl` folder where configuration files and converted spectrum files will be stored. To **start** xpl, run it as a module:
 
 ```shell
 $ python3 -m xpl
 ```
+
+To **update** xpl, run
+
+```shell
+$ pip3 install --upgrade --no-cache-dir xpl
+```
+
 
 ## Usage
 
@@ -35,3 +42,12 @@ When a region is selected, you can add peaks by clicking "+" next to "Peaks" and
 ![Screenshot](doc/demo_fitting.png "Fitting Ag3d peaks")
 
 Exporting the data or the plot is not yet supported.
+
+## Building
+
+(Notes to self) Don't forget to change version name, then in the main folder:
+
+```shell
+python3 setup.py sdist bdist_wheel
+python3 -m twine upload dist/xpl-VERSION*
+```
