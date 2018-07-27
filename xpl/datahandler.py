@@ -388,7 +388,6 @@ class XPLContainer(object):
         self.type = "notype"
         for (attr, default) in self._defaults.items():
             setattr(self, attr, attrdict.get(attr, default))
-            print(attr)
 
         self.specdict_additional = dict([
             (attr, default) for (attr, default) in attrdict.items()

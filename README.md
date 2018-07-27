@@ -6,7 +6,7 @@ XPL is a tool for plotting and analyzing X-ray photoelectron spectroscopy (XPS) 
 ## Installation
 ### Ubuntu
 
-If you don't already have it installed, install python and pip as well as libffi6 and pythongi through apt.
+If you don't already have it installed, install python and pip as well as libffi6 and python-gi through apt.
 
 ```shell
 $ sudo apt install python3 pip3
@@ -14,7 +14,7 @@ $ sudo apt install libffi6 python3-gi
 $ pip3 install xpl
 ```
 
-On starting, XPL creates a `~/.config/xpl` folder where configuration files and converted spectrum files will be stored. To **start** xpl, run it as a module:
+On starting, XPL creates a `~/.config/xpl` folder where configuration files and converted spectrum files will be stored. To **start** xpl, just select it from you application menu. Alternatively, run it as a module:
 
 ```shell
 $ python3 -m xpl
@@ -26,6 +26,21 @@ To **update** xpl, run
 $ pip3 install --upgrade --no-cache-dir xpl
 ```
 
+### Windows
+
+I have not yet succeeded in building a windows `.exe` style app or even an installer. However, you can try to install PyGObject manually and get the xpl package through pip.
+
+First, you need Python 3.5 (other 3.x will probably work, not tested) from https://www.python.org/downloads/windows/ or Anaconda or whatever. Then, you need PyGObject eiter from https://sourceforge.net/projects/pygobjectwin32/ or through MSYS (http://www.msys2.org). I could not get it to work.
+
+<!---
+Download the x86_64 installer from http://www.msys2.org/. The instructions are shown on the website, here it is in short form: Follow the installer, then in the MSYS console type `pacman -Syu` and `pacman -Su`. If you encounter a warning, just close the MSYS console and try again.
+
+In the MSYS console, run
+
+```
+pacman -S mingw-w64-i686-gtk3 mingw-w64-i686-python3-gobject
+```
+--->
 
 ## Usage
 
@@ -44,10 +59,23 @@ When a region is selected, you can add peaks by clicking "+" next to "Peaks" and
 Exporting the data or the plot is not yet supported.
 
 ## Building
+### PyPI
 
-(Notes to self) Don't forget to change version name, then in the main folder:
+Run this for building the pypi package and uploading it.
 
 ```shell
 python3 setup.py sdist bdist_wheel
 python3 -m twine upload dist/xpl-VERSION*
 ```
+
+Note to self: Don't forget to use the correct version name when uploading to pypi.
+
+### Executable for Linux
+
+Just run
+
+```shell
+pyinstaller xpl_linux.spec
+```
+
+This makes an executable `dist/xpl/XPL`. For now, this still produces a Gtk-Warning about libcanberra when running the app but that can probably safely be ignored.

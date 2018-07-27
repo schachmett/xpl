@@ -41,13 +41,13 @@ setup(
             "xpl.glade",
             "xpl_catalog.xml",
             "assets/atom_lib.png",
-            "assets/logo.svg",
-            "assets/logo48.png",
+            "assets/xpl.svg",
+            "assets/xpl48.png",
             "assets/pan.png"
         ]
     },
-    data_files={
-        "share/applications": ["xpl/xpl.desktop"],
-        "share/icons": ["xpl/assets/xpl48.png"]
-    },
+    data_files=[
+        ("share/applications", ["xpl/xpl.desktop"]),
+        ("share/icons", ["xpl/assets/xpl.svg"])
+    ],
 )
