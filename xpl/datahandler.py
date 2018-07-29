@@ -38,12 +38,19 @@ class BaseDataHandler(object):
         "removed-peak",
         "cleared-peaks",
         "changed-peak",
+        "altered"
     )
 
     def __init__(self):
         self._spectra = []
         self._idbook = XPLContainer.idbook
         self._observers = dict((signal, []) for signal in self.signals)
+        self.altered = False
+        self.connect("altered", self.alter)
+
+    def alter(self, isaltered):
+        """Changes altered value when the signal is emitted."""
+        self.altered = isaltered
 
     def emit_init_ready(self):
         """Emits cleared-spectra so that views refresh the first time
@@ -141,16 +148,12 @@ class BaseDataHandler(object):
 class DataHandler(BaseDataHandler):
     """A DataHandler internally manages Spectrum, Region and Peak objects
     and provides an interface for them to an application."""
-    def __init__(self):
-        super().__init__()
-        self.altered = False
-
     def fit_region(self, regionID):
         """Fits peaks in a given region to the cps."""
         assert self.isregion(regionID)
         self._idbook[regionID].fit()
         self._emit("fit-region", regionID)
-        self.altered = True
+        self._emit("altered", True)
 
     def manipulate_spectrum(self, spectrumID, **newdict):
         """Manipulates data that leads to recalculation of other data or
@@ -165,7 +168,7 @@ class DataHandler(BaseDataHandler):
                 continue
             if not self.get(spectrumID, attr) == value:
                 spectrum.set(attr, value)
-                self.altered = True
+                self._emit("altered", True)
                 self._emit("changed-spectrum", spectrumID, attr)
 
     def manipulate_region(self, regionID, **newdict):
@@ -180,7 +183,7 @@ class DataHandler(BaseDataHandler):
             if not self.get(regionID, attr) == value:
                 region.set(attr, value)
                 self._emit("changed-region", regionID, attr)
-                self.altered = True
+                self._emit("altered", True)
 
     def constrain_peak(self, peakID, attr, **constraints):
         """Sets constrains for a peak."""
@@ -206,11 +209,11 @@ class DataHandler(BaseDataHandler):
                 for peak in region.peaks:
                     peak.new_ID()
             self._emit("added-spectrum", spectrum.ID)
-        self.altered = False
+        self._emit("altered", False)
 
     def save(self):
         """Returns all contents for pickling."""
-        self.altered = False
+        self._emit("altered", False)
         return self._spectra
 
     def add_spectrum(self, **specdict):
@@ -218,7 +221,7 @@ class DataHandler(BaseDataHandler):
         spectrum = Spectrum(**specdict)
         self._spectra.append(spectrum)
         self._emit("added-spectrum", spectrum.ID)
-        self.altered = True
+        self._emit("altered", True)
         return spectrum.ID
 
     def add_averaged_spectrum(self, spectrumIDs):
@@ -255,7 +258,7 @@ class DataHandler(BaseDataHandler):
         spectrum.name = "AVG{}".format(spectrum.ID)
         self._spectra.append(spectrum)
         self._emit("added-spectrum", spectrum.ID)
-        self.altered = True
+        self._emit("altered", True)
         return spectrum.ID
 
     def remove_spectrum(self, spectrumID):
@@ -267,7 +270,7 @@ class DataHandler(BaseDataHandler):
         spectrum.clear_regions()
         self._spectra.remove(spectrum)
         self._emit("removed-spectrum", spectrumID)
-        self.altered = True
+        self._emit("altered", True)
 
     def amend_spectrum(self, spectrumID, **newdict):
         """Changes values of a spectrum."""
@@ -282,7 +285,7 @@ class DataHandler(BaseDataHandler):
             )
         spectrum = self._idbook[spectrumID]
         for attr, value in newdict.items():
-            if attr == "spectrumID":
+            if attr == "ID":
                 continue
             if attr in ("calibration", "norm", "smoothness"):
                 logger.error("attribute {} can not be changed through"
@@ -295,7 +298,7 @@ class DataHandler(BaseDataHandler):
             if not self.get(spectrumID, attr) == value:
                 spectrum.set(attr, value)
                 self._emit("changed-spectrum", spectrumID, attr)
-                self.altered = True
+                self._emit("altered", True)
 
     def clear_spectra(self):
         """Removes all spectra."""
@@ -307,7 +310,7 @@ class DataHandler(BaseDataHandler):
                     self._idbook.pop(peak.ID)
         self._spectra.clear()
         self._emit("cleared-spectra", None)
-        self.altered = False
+        self._emit("altered", False)
 
     def add_region(self, spectrumID, **regiondict):
         """Adds a region to spectrum with ID."""
@@ -316,7 +319,7 @@ class DataHandler(BaseDataHandler):
         regiondict["spectrum"] = spectrum
         regionID = spectrum.add_region(**regiondict)
         self._emit("added-region", regionID)
-        self.altered = True
+        self._emit("altered", True)
         return regionID
 
     def remove_region(self, regionID):
@@ -328,7 +331,7 @@ class DataHandler(BaseDataHandler):
         region.clear_peaks()
         region.spectrum.remove_region(region)
         self._emit("removed-region", regionID)
-        self.altered = True
+        self._emit("altered", True)
 
     def clear_regions(self, spectrumID):
         """Clears regions of spectrum with ID."""
@@ -340,7 +343,7 @@ class DataHandler(BaseDataHandler):
                 self._idbook.pop(peak.ID)
         spectrum.clear_regions()
         self._emit("cleared-regions", spectrumID)
-        self.altered = True
+        self._emit("altered", True)
 
     def add_peak(self, regionID, **peakdict):
         """Adds a peak to region with ID."""
@@ -349,7 +352,7 @@ class DataHandler(BaseDataHandler):
         peakdict["region"] = region
         peakID = region.add_peak(**peakdict)
         self._emit("added-peak", peakID)
-        self.altered = True
+        self._emit("altered", True)
         return peakID
 
     def remove_peak(self, peakID):
@@ -358,7 +361,18 @@ class DataHandler(BaseDataHandler):
         peak = self._idbook.pop(peakID)
         peak.region.remove_peak(peak)
         self._emit("removed-peak", peakID)
-        self.altered = True
+        self._emit("altered", True)
+
+    def amend_peak(self, peakID, **newdict):
+        """Changes peak attributes that don't affect the plot."""
+        assert self.ispeak(peakID)
+        for attr, value in newdict.items():
+            if attr not in ("name", ):
+                continue
+            if not self.get(peakID, attr) == value:
+                peak = self._idbook[peakID]
+                peak.set(attr, value)
+                self._emit("changed-peak", peakID, attr)
 
     def clear_peaks(self, regionID):
         """Clears regions of spectrum with ID."""
@@ -368,7 +382,7 @@ class DataHandler(BaseDataHandler):
             self._idbook.pop(peak.ID)
         region.clear_peaks()
         self._emit("cleared-peaks", regionID)
-        self.altered = True
+        self._emit("altered", True)
 
 
 class XPLContainer(object):

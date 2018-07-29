@@ -86,6 +86,21 @@ class XPL(Gtk.Application):
         self.win.set_title(__appname__)
         self.win.show_all()
 
+        def alter_dh(altered=True):
+            """
+            Stars the filename in the window title when datahandler
+            gets altered.
+            """
+            title = self.win.get_title()
+            if altered and u"—" in title and "*" not in title:
+                fname = title.split(u"—")[0].strip()
+                self.win.set_title(u"{}* — {}".format(fname, __appname__))
+            elif not altered and "*" in title:
+                self.win.set_title(title.replace("*", ""))
+
+        self.dh.connect("altered", alter_dh)
+
+
         fname = __config__.get("io", "project_file")
         if fname != "None":
             try:
@@ -106,7 +121,7 @@ class XPL(Gtk.Application):
                 self.on_calibrate,
             "on_normalization_switch_activate": self.on_normalize,
             "on_region_background_type_combo_changed": self.on_change_bgtype,
-            "on_peak_entry_activate": self.on_peak_entry_activate,
+            "on_peak_entry_changed": self.on_peak_entry_changed,
         }
         handlers.update(self.win.handlers)
         self.builder.connect_signals(handlers)
@@ -133,6 +148,7 @@ class XPL(Gtk.Application):
             "clear-peaks": self.on_clear_peaks,
             "avg-selected-spectra": self.on_avg_selected_spectra,
             "fit": self.on_fit,
+
             "quit": self.on_quit
         }
         for name, callback in actions.items():
@@ -190,7 +206,7 @@ class XPL(Gtk.Application):
         if really_do_it:
             self.view.activate_spectra([])
             self.dh.clear_spectra()
-            self.win.set_title("{} - {}".format(__appname__, "Untitled"))
+            self.win.set_title(u"{}* — {}".format("Untitled", __appname__))
             __config__.set("io", "project_file", "None")
             logger.info("emptied datahandler, new project")
 
@@ -200,7 +216,6 @@ class XPL(Gtk.Application):
         fname = __config__.get("io", "project_file")
         if fname != "None":
             fileio.save_project(fname, self.dh)
-            self.win.set_title("{} - {}".format(__appname__, fname))
             logger.info("saved project file to {}".format(fname))
             return True
         return self.on_save_as(widget)
@@ -257,7 +272,7 @@ class XPL(Gtk.Application):
         """Load a project file."""
         self.view.activate_spectra([])
         fileio.load_project(fname, self.dh)
-        self.win.set_title("{} - {}".format(__appname__, fname))
+        self.win.set_title(u"{} — {}".format(fname, __appname__))
         logger.info("opened project file {}".format(fname))
 
     def on_import_spectra(self, _widget, *_args):
@@ -425,7 +440,7 @@ class XPL(Gtk.Application):
             bgtype = combo.get_active_text()
             self.dh.manipulate_region(regionID, bgtype=bgtype)
 
-    def on_peak_entry_activate(self, *_args):
+    def on_peak_entry_changed(self, *_args):
         """Apply constraint strings from peak entries."""
         peakID = self.view.get_active_peak()
         def apply_constraint_string(c_string, param):
@@ -442,11 +457,8 @@ class XPL(Gtk.Application):
                 except IndexError:
                     max_ = None
                 self.dh.constrain_peak(peakID, param, min_=min_, max_=max_)
-            elif "=" in c_string:
-                try:
-                    expr = c_string.split("=")[1].strip()
-                except IndexError:
-                    expr = None
+            else:
+                expr = c_string.strip()
                 self.dh.constrain_peak(peakID, param, expr=expr)
         c_fwhm = self.builder.get_object("peak_fwhm_entry").get_text()
         apply_constraint_string(c_fwhm, "fwhm")
@@ -454,10 +466,12 @@ class XPL(Gtk.Application):
         apply_constraint_string(c_fwhm, "area")
         c_fwhm = self.builder.get_object("peak_position_entry").get_text()
         apply_constraint_string(c_fwhm, "center")
+        peakname = self.builder.get_object("peak_name_entry").get_text()
+        self.dh.amend_peak(peakID, name=peakname.strip())
 
     def on_fit(self, *_args):
         """Fits the current peaks."""
-        self.on_peak_entry_activate()
+        self.on_peak_entry_changed()
         regionID = self.view.get_active_region()
         if regionID:
             self.dh.fit_region(regionID)

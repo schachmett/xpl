@@ -1,6 +1,5 @@
 """Provides functions for data processing."""
 # pylint: disable=invalid-name
-# pylint: disable=protected-access
 # pylint: disable=logging-format-interpolation
 
 import logging
@@ -9,6 +8,7 @@ import re
 # import numpy as np
 from lmfit import Parameters
 from lmfit.models import PseudoVoigtModel
+from lmfit.parameter import check_ast_errors
 
 
 logger = logging.getLogger(__name__)
@@ -163,11 +163,23 @@ class RegionFitModelIface(object):
                 label = matchobj.group(0).title()
                 other_peak = self._region.get_peak_by_label(label)
                 if other_peak is None or other_peak == peak:
-                    return ""
+                    return "?"
                 return "{}{}".format(other_peak.prefix, names[attr])
-            expr = re.sub(r"P\d+", peakrepl, expr)
+            expr = re.sub(r"(P|p)\d+", peakrepl, expr)
 
         paramname = "{}{}".format(peak.prefix, names[attr])
+
+        # pylint: disable=protected-access
+        evaluator = self._params[paramname]._expr_eval
+        # pylint: enable=protected-access
+        evaluator.error.clear()
+        try:
+            ast_expr = evaluator.parse(expr)
+            evaluator(ast_expr, show_errors=False)
+        except (SyntaxError, NameError):
+            expr = ""
+            logger.debug("invalid expression '{}'".format(expr))
+
         try:
             self._params[paramname].set(
                 min=min_,
@@ -184,7 +196,7 @@ class RegionFitModelIface(object):
                 expr="",
                 value=value
             )
-            logger.WARNING("invalid expression '{}'".format(expr))
+            logger.debug("invalid expression '{}'".format(expr))
 
     def get_constraints(self, peak, attr):
         """Returns a string containing min/max or expr."""
@@ -209,7 +221,7 @@ class RegionFitModelIface(object):
                 constraints["expr"] = constraints["expr"][:-3]
 
         if constraints["expr"]:
-            def peakrepl(matchobj):
+            def reverse_peakrepl(matchobj):
                 """Replaces peak.label by peak.prefix_param."""
                 prefix = matchobj.group(0).split("_")[0] + "_"
                 other_peak = self._region.get_peak_by_prefix(prefix)
@@ -218,7 +230,7 @@ class RegionFitModelIface(object):
                 return other_peak.label
             constraints["expr"] = re.sub(
                 r"p\d+_[a-zA-Z_]+",
-                peakrepl,
+                reverse_peakrepl,
                 constraints["expr"]
             )
 

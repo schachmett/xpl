@@ -875,11 +875,12 @@
                                           </packing>
                                         </child>
                                         <child>
-                                          <object class="GtkEntry">
+                                          <object class="GtkEntry" id="peak_name_entry">
                                             <property name="visible">True</property>
                                             <property name="can_focus">True</property>
                                             <property name="width_chars">26</property>
                                             <property name="xalign">0.5</property>
+                                            <signal name="changed" handler="on_peak_entry_changed" swapped="no"/>
                                           </object>
                                           <packing>
                                             <property name="expand">False</property>
@@ -957,7 +958,7 @@
                                             <property name="can_focus">True</property>
                                             <property name="width_chars">10</property>
                                             <property name="xalign">0.5</property>
-                                            <signal name="activate" handler="on_peak_entry_activate" swapped="no"/>
+                                            <signal name="changed" handler="on_peak_entry_changed" swapped="no"/>
                                           </object>
                                           <packing>
                                             <property name="expand">False</property>
@@ -972,7 +973,7 @@
                                             <property name="can_focus">True</property>
                                             <property name="width_chars">10</property>
                                             <property name="xalign">0.5</property>
-                                            <signal name="activate" handler="on_peak_entry_activate" swapped="no"/>
+                                            <signal name="changed" handler="on_peak_entry_changed" swapped="no"/>
                                           </object>
                                           <packing>
                                             <property name="expand">False</property>
@@ -987,7 +988,7 @@
                                             <property name="can_focus">True</property>
                                             <property name="width_chars">10</property>
                                             <property name="xalign">0.5</property>
-                                            <signal name="activate" handler="on_peak_entry_activate" swapped="no"/>
+                                            <signal name="changed" handler="on_peak_entry_changed" swapped="no"/>
                                           </object>
                                           <packing>
                                             <property name="expand">False</property>

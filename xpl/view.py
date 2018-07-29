@@ -801,6 +801,7 @@ class XPLFitInterface():
         fwhm_entry = self._builder.get_object("peak_fwhm_entry")
         area_entry = self._builder.get_object("peak_area_entry")
         pos_entry = self._builder.get_object("peak_position_entry")
+        name_entry = self._builder.get_object("peak_name_entry")
 
         regionID = ActiveIDs.REGION
         peakID = ActiveIDs.PEAK
@@ -812,7 +813,7 @@ class XPLFitInterface():
                 constraints = self._dh.get_peak_constraints(peakID, attr)
                 cstring = ""
                 if constraints["expr"]:
-                    cstring += " = {}".format(constraints["expr"])
+                    cstring += "{}".format(constraints["expr"])
                 else:
                     if constraints["min_"] not in (-np.inf, 0):
                         cstring += " > {:.2f}".format(constraints["min_"])
@@ -822,6 +823,7 @@ class XPLFitInterface():
             fwhm_entry.set_text(get_c_string("fwhm"))
             area_entry.set_text(get_c_string("area"))
             pos_entry.set_text(get_c_string("center"))
+            name_entry.set_text(self._dh.get(peakID, "name"))
 
         regions_addbox.set_sensitive(
             len(spectrumIDs) == 1
