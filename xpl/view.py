@@ -658,7 +658,7 @@ class XPLCanvasInterface():
                     va="bottom"
                 )
 
-    def _on_dh_data_changed(self, ID=None, attr=None, *_args):
+    def _on_dh_data_changed(self, ID=None, attr=None, **_kwargs):
         """Replots if the ID is affected. Depending on changed attr, the
         axislims are kept or not. The ID is affected either if it is
         in self._plotIDs or its parend is. Also, if no ID is given,
@@ -671,19 +671,10 @@ class XPLCanvasInterface():
             return
         trigger_attrs = (
             None,
-            "norm",
-            "smoothness",
-            "calibration",
-            "int_time",
-            "energy",
-            "cps",
-            "bgtype",
-            "emin",
-            "emax",
-            "height",
-            "area",
-            "fwhm",
-            "center"
+            "norm", "smoothness", "calibration",
+            "int_time", "energy", "cps",
+            "bgtype", "emin", "emax",
+            "height", "area", "fwhm", "center"
         )
         if attr not in trigger_attrs:
             return
@@ -969,14 +960,14 @@ class XPLFitInterface():
                 constraints = self._dh.get_peak_constraints(peakID, attr)
                 cstring = ""
                 if constraints["expr"]:
-                    cstring += "= {} ".format(constraints["expr"])
+                    cstring += " = {}".format(constraints["expr"])
                 elif not constraints["vary"]:
-                    cstring += "fixed "
+                    cstring += " fixed"
                 else:
                     if constraints["min_"] not in (-np.inf, 0):
-                        cstring += "&gt; {:.2f} ".format(constraints["min_"])
+                        cstring += " &gt; {:.2f}".format(constraints["min_"])
                     if constraints["max_"] != np.inf:
-                        cstring += "&lt; {:.2f} ".format(constraints["max_"])
+                        cstring += " &lt; {:.2f}".format(constraints["max_"])
                 value = ("{}<span color='#999999' font_size='xx-small'>"
                          "{}</span>".format(value, cstring))
             renderer.set_property("markup", value)

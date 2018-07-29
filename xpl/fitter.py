@@ -42,10 +42,15 @@ class RegionFitModelIface(object):
         if peak.model_name == "PseudoVoigt":
             model = PseudoVoigtModel(prefix=peak.prefix)
             model.set_param_hint("fraction", vary=False)
+            params = model.make_params()
+            fwhmname = "{}fwhm".format(peak.prefix)
+            sigmaname = "{}sigma".format(peak.prefix)
+            params[fwhmname].set(expr="", vary=True)
+            params[sigmaname].set(expr="{}/2".format(fwhmname))
+            params.pretty_print()
         else:
             raise NotImplementedError("Only PseudoVoigt models supported")
-        params = model.make_params()
-        self._params += params
+        self._params += params  #every third time, this fails
         self._single_models[peak.prefix] = model
 
     def remove_peak(self, peak):
@@ -59,32 +64,6 @@ class RegionFitModelIface(object):
         pars_to_del = [par for par in self._params if peak.prefix in par]
         for par in pars_to_del:
             self._params.pop(par)
-
-    def init_params(self, peak, **kwargs):
-        """Sets initial values chosen by user."""
-        if peak.prefix not in self._params:
-            self.add_peak(peak)
-        if "area" not in kwargs and "height" in kwargs:
-            kwargs["area"] = (
-                kwargs.pop("height")
-                * kwargs["fwhm"] * np.sqrt(np.pi / np.log(2))
-                / (1 + np.sqrt(1 / (np.pi * np.log(2))))
-            )
-        for parname in ("area", "fwhm", "center"):
-            if parname not in kwargs:
-                logger.error("Missing parameter {}".format(parname))
-                raise TypeError("Missing parameter {}".format(parname))
-
-        model = self._single_models[peak.prefix]
-        if peak.model_name == "PseudoVoigt":
-            sigma = kwargs["fwhm"] / 2
-            model.set_param_hint("sigma", value=sigma)
-            model.set_param_hint("amplitude", value=kwargs["area"])
-            model.set_param_hint("center", value=kwargs["center"])
-            params = model.make_params()
-            self._params += params
-        else:
-            raise NotImplementedError("Only PseudoVoigt models supported")
 
     def guess_params(self, peak):
         """Guesses parameters for a new peak."""
@@ -108,20 +87,6 @@ class RegionFitModelIface(object):
         result = self._total_model.fit(y, self._params, x=self._region.energy)
         self._params = result.params
 
-        for peak in self._region.peaks:
-            if peak.model_name == "PseudoVoigt":
-                amp = self._params["{}amplitude".format(peak.prefix)].value
-                sigma = self._params["{}sigma".format(peak.prefix)].value
-                center = self._params["{}center".format(peak.prefix)].value
-                peak.set_params_from_model(
-                    fwhm=sigma * 2,
-                    area=amp,
-                    center=center
-                )
-            else:
-                raise NotImplementedError("Only PseudoVoigt models supported")
-        # print(result.fit_report())
-
     def get_peak_cps(self, peak):
         """Returns the model evaluation value for a given Peak."""
         if peak.prefix not in self._single_models:
@@ -142,25 +107,68 @@ class RegionFitModelIface(object):
         )
         return results
 
-    # pylint: disable=too-many-arguments
+    def get_value(self, peak, attr):
+        """Returns the current value of the paramater corresponding to attr.
+        """
+        if peak.model_name == "PseudoVoigt":
+            names = {
+                "area": "amplitude",
+                "fwhm": "fwhm",
+                "center": "center"
+            }
+            if attr == "height":
+                area = self.get_value(peak, "area")
+                fwhm = self.get_value(peak, "fwhm")
+                height = (
+                    area
+                    / (fwhm * np.sqrt(np.pi / np.log(2)))
+                    * (1 + np.sqrt(1 / (np.pi * np.log(2))))
+                )
+                return height
+            # if attr == "fwhm":
+            #     return self.get_value(peak, "sigma") * 2
+        else:
+            raise NotImplementedError("Only PseudoVoigt models supported")
+
+        paramname = "{}{}".format(peak.prefix, names[attr])
+        return self._params[paramname].value
+
+    def set_value(self, peak, attr, value):
+        """
+        Sets the current value of the parameter corresponding to attr.
+        """
+        if peak.prefix not in self._single_models:
+            self.add_peak(peak)
+
+        if peak.model_name == "PseudoVoigt":
+            names = {
+                "area": "amplitude",
+                "fwhm": "fwhm",
+                "center": "center"
+            }
+            if attr == "height":
+                fwhm = self.get_value(peak, "fwhm")
+                height = value
+                area = (
+                    height
+                    * (fwhm * np.sqrt(np.pi / np.log(2)))
+                    / (1 + np.sqrt(1 / (np.pi * np.log(2))))
+                )
+                attr = "area"
+                value = area
+        else:
+            raise NotImplementedError("Only PseudoVoigt models supported")
+        paramname = "{}{}".format(peak.prefix, names[attr])
+        self._params[paramname].set(value=value)
+
+    # pylint: disable=too-many-arguments, too-many-locals
     def set_constraints(self, peak, attr, value, vary, min_, max_, expr):
         """Adds a constraint to a Peak parameter."""
         if peak.model_name == "PseudoVoigt":
             names = {
                 "area": "amplitude",
-                "fwhm": "sigma",
+                "fwhm": "fwhm",
                 "center": "center"}
-            if attr == "fwhm":
-                if min_:
-                    min_ /= 2
-                if max_:
-                    max_ /= 2
-                if value:
-                    value /= 2
-                if expr:
-                    expr += "/ 2"
-                if not vary and not expr and value:
-                    value /= 2
         else:
             raise NotImplementedError("Only PseudoVoigt models supported")
 
@@ -194,84 +202,22 @@ class RegionFitModelIface(object):
         logger.debug("invalid expression '{}'".format(expr))
         return isvalid
 
-    def get_value(self, peak, attr):
-        """Returns the current value of the paramater corresponding to attr.
-        """
-        if peak.model_name == "PseudoVoigt":
-            names = {
-                "area": "amplitude",
-                "sigma": "sigma",
-                "center": "center"
-            }
-            if attr == "height":
-                area = self.get_value(peak, "area")
-                fwhm = self.get_value(peak, "fwhm")
-                height = (
-                    area
-                    / fwhm * np.sqrt(np.pi / np.log(2))
-                    * (1 + np.sqrt(1 / (np.pi * np.log(2))))
-                )
-                return height
-            if attr == "fwhm":
-                return self.get_value(peak, "sigma") * 2
-        else:
-            raise NotImplementedError("Only PseudoVoigt models supported")
-
-        paramname = "{}{}".format(peak.prefix, names[attr])
-        return self._params[paramname].value
-
-    def set_value(self, peak, attr, value):
-        """
-        Sets the current value of the parameter corresponding to attr.
-        """
-        if peak.prefix not in self._single_models:
-            self.add_peak(peak)
-
-        if peak.model_name == "PseudoVoigt":
-            names = {
-                "area": "amplitude",
-                "sigma": "sigma",
-                "center": "center"
-            }
-            if attr == "height":
-                fwhm = self.get_value(peak, "fwhm")
-                height = value
-                area = (
-                    height
-                    * fwhm * np.sqrt(np.pi / np.log(2))
-                    / (1 + np.sqrt(1 / (np.pi * np.log(2))))
-                )
-                attr = "area"
-                value = area
-            if attr == "fwhm":
-                attr = "sigma"
-                value = value / 2
-        else:
-            raise NotImplementedError("Only PseudoVoigt models supported")
-        paramname = "{}{}".format(peak.prefix, names[attr])
-        self._params[paramname].set(value=value)
-
     def get_constraints(self, peak, attr):
         """Returns a string containing min/max or expr."""
         if peak.model_name == "PseudoVoigt":
             names = {
                 "area": "amplitude",
-                "fwhm": "sigma",
+                "fwhm": "fwhm",
                 "center": "center"}
         else:
             raise NotImplementedError("Only PseudoVoigt models supported")
-        constraints = {}
 
+        constraints = {}
         paramname = "{}{}".format(peak.prefix, names[attr])
         constraints["min_"] = self._params[paramname].min
         constraints["max_"] = self._params[paramname].max
         constraints["vary"] = self._params[paramname].vary
         constraints["expr"] = self._params[paramname].expr
-        if attr == "fwhm":
-            constraints["min_"] *= 2
-            constraints["max_"] *= 2
-            if constraints["expr"] and constraints["expr"][-3:] == "/ 2":
-                constraints["expr"] = constraints["expr"][:-3]
 
         if constraints["expr"]:
             def reverse_peakrepl(matchobj):
@@ -286,5 +232,4 @@ class RegionFitModelIface(object):
                 reverse_peakrepl,
                 constraints["expr"]
             )
-
         return constraints

@@ -30,6 +30,11 @@
     <property name="can_focus">False</property>
     <property name="pixbuf">assets/pan.png</property>
   </object>
+  <object class="GtkImage" id="peak_addguessed_image">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <property name="icon_name">camera-switch-symbolic</property>
+  </object>
   <object class="XPLPeakTreeStore" id="peak_treestore"/>
   <object class="GtkTreeModelFilter" id="peak_filter_treestore">
     <property name="child_model">peak_treestore</property>
@@ -777,6 +782,22 @@
                                       </packing>
                                     </child>
                                     <child>
+                                      <object class="GtkButton" id="peak_addguessed_button">
+                                        <property name="visible">True</property>
+                                        <property name="can_focus">True</property>
+                                        <property name="receives_default">True</property>
+                                        <property name="action_name">app.add-guessed-peak</property>
+                                        <property name="image">peak_addguessed_image</property>
+                                        <property name="always_show_image">True</property>
+                                      </object>
+                                      <packing>
+                                        <property name="expand">False</property>
+                                        <property name="fill">True</property>
+                                        <property name="padding">5</property>
+                                        <property name="position">2</property>
+                                      </packing>
+                                    </child>
+                                    <child>
                                       <object class="GtkButton" id="peak_add_button">
                                         <property name="visible">True</property>
                                         <property name="can_focus">True</property>
@@ -789,7 +810,7 @@
                                         <property name="expand">False</property>
                                         <property name="fill">True</property>
                                         <property name="padding">5</property>
-                                        <property name="position">2</property>
+                                        <property name="position">3</property>
                                       </packing>
                                     </child>
                                     <child>
@@ -805,7 +826,7 @@
                                         <property name="expand">False</property>
                                         <property name="fill">True</property>
                                         <property name="padding">5</property>
-                                        <property name="position">3</property>
+                                        <property name="position">4</property>
                                       </packing>
                                     </child>
                                   </object>

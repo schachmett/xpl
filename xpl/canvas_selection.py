@@ -140,7 +140,6 @@ class PeakSelector(_SelectorWidget):
         x0, y0, = self.pressv
 
         angle = abs(np.arctan((x - x0) / (y - y0)))
-        print(np.rad2deg(angle))
         self.wedge.set_theta1(np.rad2deg(-angle) - 90)
         self.wedge.set_theta2(np.rad2deg(angle) - 90)
 

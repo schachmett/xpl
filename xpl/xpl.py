@@ -145,11 +145,11 @@ class XPL(Gtk.Application):
             "clear-regions": self.on_clear_regions,
             "add-region": self.on_add_region,
             "add-peak": self.on_add_peak,
+            "add-guessed-peak": self.on_add_guessed_peak,
             "remove-peak": self.on_remove_peak,
             "clear-peaks": self.on_clear_peaks,
             "avg-selected-spectra": self.on_avg_selected_spectra,
             "fit": self.on_fit,
-
             "quit": self.on_quit
         }
         for name, callback in actions.items():
@@ -396,6 +396,12 @@ class XPL(Gtk.Application):
         rmax = self.dh.get(regionID, "emax")
         plot_toolbar.get_wedge(create_peak, **wedgeprops, limits=(rmin, rmax))
 
+    def on_add_guessed_peak(self, *_args):
+        """Adds a peak where the parameters are guessed by lmfit."""
+        regionID = self.view.get_active_region()
+        peakID = self.dh.add_peak(regionID, guess=True)
+        logger.info("guessed peak {} for region {}".format(peakID, regionID))
+
     def on_remove_peak(self, *_args):
         """Removes currently selected peak."""
         peakID = self.view.get_active_peak()
@@ -462,13 +468,12 @@ class XPL(Gtk.Application):
                 try:
                     value = float(c_string.strip())
                 except ValueError:
-                    pass
+                    expr = c_string.strip()
+                    self.dh.constrain_peak(peakID, param, expr=expr)
                 else:
                     self.dh.constrain_peak(
                         peakID, param, vary=False, value=value
                     )
-                expr = c_string.strip()
-                self.dh.constrain_peak(peakID, param, expr=expr)
         c_fwhm = self.builder.get_object("peak_fwhm_entry").get_text()
         apply_constraint_string(c_fwhm, "fwhm")
         c_fwhm = self.builder.get_object("peak_area_entry").get_text()

@@ -673,11 +673,7 @@ class Region(XPLContainer):
             height = peakdict.pop("totalheight") - bg_at_center
             peakdict["height"] = height
         if "angle" in peakdict:
-            print(np.rad2deg(peakdict["angle"]))
             fwhm = np.tan(peakdict.pop("angle")) * peakdict["height"]
-            print(fwhm)
-            print(peakdict["height"])
-            print("-----")
             peakdict["fwhm"] = fwhm
 
         peak = Peak(**peakdict)
@@ -701,7 +697,7 @@ class Peak(XPLContainer):
     """A peak container."""
     # pylint: disable=no-member
     # pylint: disable=attribute-defined-outside-init
-    _required = ("region", "fwhm", "center")
+    _required = ("region",)
     _defaults = {
         "name": "",
         "model_name": "PseudoVoigt"
@@ -715,50 +711,26 @@ class Peak(XPLContainer):
         self.label = "P{}".format(self.region.peak_number)
         self.type = "peak"
 
-        if "area" in peakdict:
-            self.area = peakdict["area"]
-        elif "height" in peakdict:
-            self.height = peakdict["height"]
-        self.fwhm = peakdict["fwhm"]
-        self.center = peakdict["center"]
+        if peakdict.get("guess", None):
+            self.model.guess_params(self)
+        else:
+            # Order matters
+            self.fwhm = peakdict["fwhm"]
+            self.center = peakdict["center"]
+            if "area" in peakdict:
+                self.area = peakdict["area"]
+            elif "height" in peakdict:
+                self.height = peakdict["height"]
 
         if "name" not in peakdict:
             self.name = "Peak {}".format(
                 ascii_uppercase[self.region.peak_number])
 
-        if None in (self.height, self.area, self.fwhm, self.center):
-            self.model.guess_params(self)   #TODO must come earlier
-
-
-    # def set(self, attr, value):
-    #     """Overload set for some special attributes. (setter
-    #     for DataHandler)"""
-    #     super().set(attr, value)
-    #     if attr == "model_name":
-    #         pass
-    #     if attr in ("fwhm", "area", "center"):
-    #         pass
-    #         # self.model.init_params(
-    #         #     self,
-    #         #     fwhm=self.fwhm,
-    #         #     area=self.area,
-    #         #     center=self.center
-    #         # )
-
-    # def set_params_from_model(self, **kwargs):
-    #     """Setter for peak paramaters to use from the fitting interface."""
-    #     pass
-        # for key, value in kwargs.items():
-        #     if key not in ("height", "area", "center", "fwhm"):
-        #         raise AttributeError("model can only change peak parameters,"
-        #                              "not {}".format(key))
-        #     self.set(key, value)
-
     def set_constraints(self, param, **constraints):
         """Adds the constraints written in the dict constraints."""
         constraints = {k: v for k, v in constraints.items() if v is not None}
-        value = None
-        vary = True
+        value = constraints.get("value", None)
+        vary = constraints.get("vary", True)
         min_ = constraints.get("min_", 0)
         max_ = constraints.get("max_", np.inf)
         expr = constraints.get("expr", "")
