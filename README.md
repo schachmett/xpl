@@ -52,7 +52,7 @@ When the "Spectra" tab is selected, you can choose the spectra to view by select
 
 In the fitting tab, you can first add one or more regions by clicking "+" next to "Regions", then dragging across the Plot View. 
 
-When a region is selected, you can add peaks by clicking "+" next to "Peaks" and drawing them by dragging from the peak maximum downwards inside the selected region. After this, you can constrain the peak values in the bottommost three entries: They accept input either like `< min > max` where `min` and `max` are minimum and maximum values for the corresponding parameter, or like `= expression` where `expression` can be a simple arithmetic expression. A relation to the same parameter of another peak can be expressed by using their label (see screenshot below).
+When a region is selected, you can add peaks by clicking "+" next to "Peaks" and drawing them by dragging from the peak maximum downwards inside the selected region. After this, you can constrain the peak values in the bottommost three entries: They accept input either like `< min > max` where `min` and `max` are minimum and maximum values for the corresponding parameter, or like `expression` which can be a simple arithmetic expression or just a fixed value. A relation to the same parameter of another peak can be expressed by using their label (see screenshot below).
 
 ![Screenshot](doc/demo_fitting.png "Fitting Ag3d peaks")
 
