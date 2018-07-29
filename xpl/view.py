@@ -171,9 +171,9 @@ class XPLView():
         """If something different is selected, all adjustment widgets that
         affect spectra have to be reset."""
         cautions = (
-            self._builder.get_object("caution_image1"),
-            self._builder.get_object("caution_image2"),
-            self._builder.get_object("caution_image3")
+            self._builder.get_object("adj_caution_image1"),
+            self._builder.get_object("adj_caution_image2"),
+            self._builder.get_object("adj_caution_image3")
         )
         smooth = self._builder.get_object("smoothing_scale_adjustment")
         cal = self._builder.get_object("calibration_spinbutton_adjustment")
@@ -373,6 +373,7 @@ class XPLCanvasInterface():
             "fit-region": self._on_dh_data_changed,
             "added-peak": self._on_dh_data_changed,
             "removed-peak": self._on_dh_data_changed,
+            "changed-peak": self._on_dh_data_changed,
             "cleared-peaks": self._on_dh_data_changed,
         }
         for signal, handler in handlers.items():
@@ -657,7 +658,7 @@ class XPLCanvasInterface():
                     va="bottom"
                 )
 
-    def _on_dh_data_changed(self, ID=None, attr=None):
+    def _on_dh_data_changed(self, ID=None, attr=None, **_kwargs):
         """Replots if the ID is affected. Depending on changed attr, the
         axislims are kept or not. The ID is affected either if it is
         in self._plotIDs or its parend is. Also, if no ID is given,
@@ -670,15 +671,10 @@ class XPLCanvasInterface():
             return
         trigger_attrs = (
             None,
-            "norm",
-            "smoothness",
-            "calibration",
-            "int_time",
-            "energy",
-            "cps",
-            "bgtype",
-            "emin",
-            "emax"
+            "norm", "smoothness", "calibration",
+            "int_time", "energy", "cps",
+            "bgtype", "emin", "emax",
+            "height", "area", "fwhm", "center"
         )
         if attr not in trigger_attrs:
             return
@@ -813,12 +809,14 @@ class XPLFitInterface():
                 constraints = self._dh.get_peak_constraints(peakID, attr)
                 cstring = ""
                 if constraints["expr"]:
-                    cstring += "{}".format(constraints["expr"])
+                    cstring += str(constraints["expr"])
+                elif not constraints["vary"]:
+                    cstring = str(self._dh.get(peakID, attr))
                 else:
                     if constraints["min_"] not in (-np.inf, 0):
-                        cstring += " > {:.2f}".format(constraints["min_"])
+                        cstring += "> {:.2f} ".format(constraints["min_"])
                     if constraints["max_"] != np.inf:
-                        cstring += " < {:.2f}".format(constraints["max_"])
+                        cstring += "< {:.2f}".format(constraints["max_"])
                 return cstring
             fwhm_entry.set_text(get_c_string("fwhm"))
             area_entry.set_text(get_c_string("area"))
@@ -901,15 +899,29 @@ class XPLFitInterface():
         raise logger.warning("peakview: not shown peak {} cannot be removed"
                              "".format(peakID))
 
-    def _on_peak_changed(self, peakID, attr):
+    def _on_peak_changed(self, peakID, attr, isvalid=True):
         """Refreshes peak param column."""
-        if attr not in PEAK_TITLES: #peak.name
+        if attr not in PEAK_TITLES:
             return
         col_index = self._peak_model.get_col_index(attr)
-        value = str(self._dh.get(peakID, attr))
         for row in self._peak_model:
-            if int(row[0]) == peakID:
-                self._peak_model.set(row.iter, col_index, value)
+            peakID_other = int(row[0])
+            value = str(self._dh.get(peakID_other, attr))
+            self._peak_model.set(row.iter, col_index, value)
+        if peakID == ActiveIDs.PEAK:
+            entry = None
+            if attr == "center":
+                entry = self._builder.get_object("peak_position_entry")
+            elif attr == "area":
+                entry = self._builder.get_object("peak_area_entry")
+            elif attr == "fwhm":
+                entry = self._builder.get_object("peak_fwhm_entry")
+            imgname = "dialog-warning-symbolic" if not isvalid else None
+            if entry:
+                entry.set_icon_from_icon_name(
+                    Gtk.EntryIconPosition.SECONDARY,
+                    imgname
+                )
         logger.debug("peakview: updated peak {}, attr '{}' is now '{}'"
                      "".format(peakID, attr, value))
 
@@ -929,8 +941,8 @@ class XPLFitInterface():
                 values = [str(self._dh.get(peakID, attr)) for attr in attrs]
                 self._peak_model.set(row.iter, idxs, values)
         else:
-            logger.warning("region {} should be plotted, but {} active"
-                           "".format(regionID, ActiveIDs.REGION))
+            logger.warning("inconsistency: region {} should be plotted, but "
+                           "{} active".format(regionID, ActiveIDs.REGION))
 
     def _make_peakview_columns(self):
         """Initializes columns. Must therefore be called in __init__."""
@@ -949,6 +961,8 @@ class XPLFitInterface():
                 cstring = ""
                 if constraints["expr"]:
                     cstring += " = {}".format(constraints["expr"])
+                elif not constraints["vary"]:
+                    cstring += " fixed"
                 else:
                     if constraints["min_"] not in (-np.inf, 0):
                         cstring += " &gt; {:.2f}".format(constraints["min_"])
