@@ -189,8 +189,9 @@ class DataHandler(BaseDataHandler):
         """Sets constrains for a peak."""
         assert self.ispeak(peakID)
         peak = self._idbook[peakID]
-        peak.set_constraints(attr, **constraints)
-        self._emit("changed-peak", peakID, attr)
+        isvalid = peak.set_constraints(attr, **constraints)
+        self._emit("changed-peak", peakID, attr, isvalid)
+        self._emit("altered", True)
 
     def get_peak_constraints(self, peakID, attr):
         """Gets constraints from a peak."""
@@ -372,7 +373,8 @@ class DataHandler(BaseDataHandler):
             if not self.get(peakID, attr) == value:
                 peak = self._idbook[peakID]
                 peak.set(attr, value)
-                self._emit("changed-peak", peakID, attr)
+                self._emit("changed-peak", peakID, attr, True)
+                self._emit("altered", True)
 
     def clear_peaks(self, regionID):
         """Clears regions of spectrum with ID."""
@@ -671,12 +673,15 @@ class Region(XPLContainer):
             height = peakdict.pop("totalheight") - bg_at_center
             peakdict["height"] = height
         if "angle" in peakdict:
+            print(np.rad2deg(peakdict["angle"]))
             fwhm = np.tan(peakdict.pop("angle")) * peakdict["height"]
+            print(fwhm)
+            print(peakdict["height"])
+            print("-----")
             peakdict["fwhm"] = fwhm
 
         peak = Peak(**peakdict)
         self.peaks.append(peak)
-        self.model.add_peak(peak)
         self.peak_number += 1
         return peak.ID
 
@@ -696,67 +701,58 @@ class Peak(XPLContainer):
     """A peak container."""
     # pylint: disable=no-member
     # pylint: disable=attribute-defined-outside-init
-    _required = ("region",)
+    _required = ("region", "fwhm", "center")
     _defaults = {
         "name": "",
-        "model_name": "PseudoVoigt",
-        "_area": None,
-        "_height": None,
-        "fwhm": None,
-        "center": None
+        "model_name": "PseudoVoigt"
     }
 
     def __init__(self, **peakdict):
-        if "height" in peakdict:
-            height = peakdict.pop("height")
-            peakdict["_height"] = height
-        if "area" in peakdict:
-            area = peakdict.pop("area")
-            peakdict["_area"] = area
         super().__init__(**peakdict)
-        self.type = "peak"
-
         self.region = peakdict["region"]
-        self._constraints = []
+        self.model = self.region.model
         self.prefix = "p{}_".format(self.ID)
         self.label = "P{}".format(self.region.peak_number)
+        self.type = "peak"
+
+        if "area" in peakdict:
+            self.area = peakdict["area"]
+        elif "height" in peakdict:
+            self.height = peakdict["height"]
+        self.fwhm = peakdict["fwhm"]
+        self.center = peakdict["center"]
 
         if "name" not in peakdict:
             self.name = "Peak {}".format(
                 ascii_uppercase[self.region.peak_number])
 
-        self.model = self.region.model
         if None in (self.height, self.area, self.fwhm, self.center):
-            self.model.guess_params(self)
-        else:
-            self.model.init_params(
-                self,
-                fwhm=self.fwhm,
-                area=self.area,
-                center=self.center
-            )
+            self.model.guess_params(self)   #TODO must come earlier
 
-    def set(self, attr, value):
-        """Overload set for some special attributes. (setter
-        for DataHandler)"""
-        super().set(attr, value)
-        if attr == "model_name":
-            pass
-        if attr in ("fwhm", "area", "center"):
-            pass
-            # self.model.init_params(
-            #     self,
-            #     fwhm=self.fwhm,
-            #     area=self.area,
-            #     center=self.center
-            # )
 
-    def set_params_from_model(self, **kwargs):
-        """Setter for peak paramaters to use from the fitting interface."""
-        for key, value in kwargs.items():
-            if key not in ("height", "area", "center", "fwhm"):
-                raise AttributeError("model can only change peak parameters")
-            self.set(key, value)
+    # def set(self, attr, value):
+    #     """Overload set for some special attributes. (setter
+    #     for DataHandler)"""
+    #     super().set(attr, value)
+    #     if attr == "model_name":
+    #         pass
+    #     if attr in ("fwhm", "area", "center"):
+    #         pass
+    #         # self.model.init_params(
+    #         #     self,
+    #         #     fwhm=self.fwhm,
+    #         #     area=self.area,
+    #         #     center=self.center
+    #         # )
+
+    # def set_params_from_model(self, **kwargs):
+    #     """Setter for peak paramaters to use from the fitting interface."""
+    #     pass
+        # for key, value in kwargs.items():
+        #     if key not in ("height", "area", "center", "fwhm"):
+        #         raise AttributeError("model can only change peak parameters,"
+        #                              "not {}".format(key))
+        #     self.set(key, value)
 
     def set_constraints(self, param, **constraints):
         """Adds the constraints written in the dict constraints."""
@@ -766,9 +762,11 @@ class Peak(XPLContainer):
         min_ = constraints.get("min_", 0)
         max_ = constraints.get("max_", np.inf)
         expr = constraints.get("expr", "")
-        self.model.set_constraints(self, param, value, vary, min_, max_, expr)
         logger.info("set peak {} '{}' constraints: min={}, max={}, expr={}"
                     "".format(self.ID, param, min_, max_, expr))
+        return self.model.set_constraints(
+            self, param, value, vary, min_, max_, expr
+        )
 
     def get_constraints(self, attr):
         """Returns a dictionary containing the constraints."""
@@ -776,49 +774,55 @@ class Peak(XPLContainer):
 
     @property
     def area(self):
-        """Returns self._area, important job is in the setter."""
-        if not self._area and self._height:
-            area = (
-                self._height
-                * (self.fwhm * np.sqrt(np.pi / np.log(2)))
-                / (1 + np.sqrt(1 / (np.pi * np.log(2))))
-            )
-            self._area = area
-        return self._area
+        """
+        Returns value of model area parameter.
+        """
+        return self.model.get_value(self, "area")
 
     @area.setter
     def area(self, value):
-        """Sets self._area and unsets self._height."""
-        self._area = value
-        height = (
-            self._area
-            / (self.fwhm * np.sqrt(np.pi / np.log(2)))
-            * (1 + np.sqrt(1 / (np.pi * np.log(2))))
-        )
-        self._height = height
+        """
+        Sets the value of model area parameter in the model.
+        """
+        self.model.set_value(self, "area", value)
 
     @property
     def height(self):
         """Returns self._height, important job is in the setter."""
-        if not self._height and self._area:
-            height = (
-                self._area
-                / (self.fwhm * np.sqrt(np.pi / np.log(2)))
-                * (1 + np.sqrt(1 / (np.pi * np.log(2))))
-            )
-            self._height = height
-        return self._height
+        return self.model.get_value(self, "height")
 
     @height.setter
     def height(self, value):
         """Sets self._height and self._area."""
-        self._height = value
-        area = (
-            self._height
-            * (self.fwhm * np.sqrt(np.pi / np.log(2)))
-            / (1 + np.sqrt(1 / (np.pi * np.log(2))))
-        )
-        self._area = area
+        self.model.set_value(self, "height", value)
+
+    @property
+    def fwhm(self):
+        """
+        Gets fwhm inside model.
+        """
+        return self.model.get_value(self, "fwhm")
+
+    @fwhm.setter
+    def fwhm(self, value):
+        """
+        Sets fwhm inside model.
+        """
+        self.model.set_value(self, "fwhm", value)
+
+    @property
+    def center(self):
+        """
+        Gets center from model.
+        """
+        return self.model.get_value(self, "center")
+
+    @center.setter
+    def center(self, value):
+        """
+        Sets center in model.
+        """
+        self.model.set_value(self, "center", value)
 
     @property
     def fit_cps(self):

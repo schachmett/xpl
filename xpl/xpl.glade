@@ -337,7 +337,7 @@
                                 <property name="orientation">vertical</property>
                                 <property name="homogeneous">True</property>
                                 <child>
-                                  <object class="GtkImage" id="caution_image1">
+                                  <object class="GtkImage" id="adj_caution_image1">
                                     <property name="can_focus">False</property>
                                     <property name="tooltip_text" translatable="yes">Caution: Changes will apply to all currently plotted spectra</property>
                                     <property name="icon_name">dialog-warning-symbolic</property>
@@ -349,7 +349,7 @@
                                   </packing>
                                 </child>
                                 <child>
-                                  <object class="GtkImage" id="caution_image2">
+                                  <object class="GtkImage" id="adj_caution_image2">
                                     <property name="can_focus">False</property>
                                     <property name="tooltip_text" translatable="yes">Caution: Changes will apply to all currently plotted spectra</property>
                                     <property name="icon_name">dialog-warning-symbolic</property>
@@ -361,7 +361,7 @@
                                   </packing>
                                 </child>
                                 <child>
-                                  <object class="GtkImage" id="caution_image3">
+                                  <object class="GtkImage" id="adj_caution_image3">
                                     <property name="can_focus">False</property>
                                     <property name="tooltip_text" translatable="yes">Caution: Changes will apply to all currently plotted spectra</property>
                                     <property name="icon_name">dialog-warning-symbolic</property>
@@ -880,7 +880,7 @@
                                             <property name="can_focus">True</property>
                                             <property name="width_chars">26</property>
                                             <property name="xalign">0.5</property>
-                                            <signal name="changed" handler="on_peak_entry_changed" swapped="no"/>
+                                            <signal name="changed" handler="on_peak_name_entry_changed" swapped="no"/>
                                           </object>
                                           <packing>
                                             <property name="expand">False</property>
@@ -902,41 +902,119 @@
                                         <property name="visible">True</property>
                                         <property name="can_focus">False</property>
                                         <child>
-                                          <object class="GtkLabel">
+                                          <object class="GtkBox">
                                             <property name="visible">True</property>
                                             <property name="can_focus">False</property>
-                                            <property name="label" translatable="yes">Position</property>
-                                            <property name="width_chars">13</property>
+                                            <property name="orientation">vertical</property>
+                                            <child>
+                                              <object class="GtkLabel">
+                                                <property name="visible">True</property>
+                                                <property name="can_focus">False</property>
+                                                <property name="label" translatable="yes">Position</property>
+                                              </object>
+                                              <packing>
+                                                <property name="expand">False</property>
+                                                <property name="fill">True</property>
+                                                <property name="position">0</property>
+                                              </packing>
+                                            </child>
+                                            <child>
+                                              <object class="GtkEntry" id="peak_position_entry">
+                                                <property name="visible">True</property>
+                                                <property name="can_focus">True</property>
+                                                <property name="width_chars">10</property>
+                                                <property name="xalign">0.5</property>
+                                                <signal name="activate" handler="on_peak_entry_activate" swapped="no"/>
+                                              </object>
+                                              <packing>
+                                                <property name="expand">False</property>
+                                                <property name="fill">True</property>
+                                                <property name="position">1</property>
+                                              </packing>
+                                            </child>
                                           </object>
                                           <packing>
                                             <property name="expand">False</property>
                                             <property name="fill">True</property>
+                                            <property name="padding">5</property>
                                             <property name="position">0</property>
                                           </packing>
                                         </child>
                                         <child>
-                                          <object class="GtkLabel">
+                                          <object class="GtkBox">
                                             <property name="visible">True</property>
                                             <property name="can_focus">False</property>
-                                            <property name="label" translatable="yes">Area</property>
-                                            <property name="width_chars">13</property>
+                                            <property name="orientation">vertical</property>
+                                            <child>
+                                              <object class="GtkLabel">
+                                                <property name="visible">True</property>
+                                                <property name="can_focus">False</property>
+                                                <property name="label" translatable="yes">Area</property>
+                                              </object>
+                                              <packing>
+                                                <property name="expand">False</property>
+                                                <property name="fill">True</property>
+                                                <property name="position">0</property>
+                                              </packing>
+                                            </child>
+                                            <child>
+                                              <object class="GtkEntry" id="peak_area_entry">
+                                                <property name="visible">True</property>
+                                                <property name="can_focus">True</property>
+                                                <property name="width_chars">10</property>
+                                                <property name="xalign">0.5</property>
+                                                <signal name="activate" handler="on_peak_entry_activate" swapped="no"/>
+                                              </object>
+                                              <packing>
+                                                <property name="expand">False</property>
+                                                <property name="fill">True</property>
+                                                <property name="position">1</property>
+                                              </packing>
+                                            </child>
                                           </object>
                                           <packing>
                                             <property name="expand">False</property>
                                             <property name="fill">True</property>
+                                            <property name="padding">5</property>
                                             <property name="position">1</property>
                                           </packing>
                                         </child>
                                         <child>
-                                          <object class="GtkLabel">
+                                          <object class="GtkBox">
                                             <property name="visible">True</property>
                                             <property name="can_focus">False</property>
-                                            <property name="label" translatable="yes">FWHM</property>
-                                            <property name="width_chars">13</property>
+                                            <property name="orientation">vertical</property>
+                                            <child>
+                                              <object class="GtkLabel">
+                                                <property name="visible">True</property>
+                                                <property name="can_focus">False</property>
+                                                <property name="label" translatable="yes">FWHM</property>
+                                              </object>
+                                              <packing>
+                                                <property name="expand">False</property>
+                                                <property name="fill">True</property>
+                                                <property name="position">0</property>
+                                              </packing>
+                                            </child>
+                                            <child>
+                                              <object class="GtkEntry" id="peak_fwhm_entry">
+                                                <property name="visible">True</property>
+                                                <property name="can_focus">True</property>
+                                                <property name="width_chars">10</property>
+                                                <property name="xalign">0.5</property>
+                                                <signal name="activate" handler="on_peak_entry_activate" swapped="no"/>
+                                              </object>
+                                              <packing>
+                                                <property name="expand">False</property>
+                                                <property name="fill">True</property>
+                                                <property name="position">1</property>
+                                              </packing>
+                                            </child>
                                           </object>
                                           <packing>
                                             <property name="expand">False</property>
                                             <property name="fill">True</property>
+                                            <property name="padding">5</property>
                                             <property name="position">2</property>
                                           </packing>
                                         </child>
@@ -945,63 +1023,7 @@
                                         <property name="expand">False</property>
                                         <property name="fill">True</property>
                                         <property name="padding">5</property>
-                                        <property name="position">5</property>
-                                      </packing>
-                                    </child>
-                                    <child>
-                                      <object class="GtkBox">
-                                        <property name="visible">True</property>
-                                        <property name="can_focus">False</property>
-                                        <child>
-                                          <object class="GtkEntry" id="peak_position_entry">
-                                            <property name="visible">True</property>
-                                            <property name="can_focus">True</property>
-                                            <property name="width_chars">10</property>
-                                            <property name="xalign">0.5</property>
-                                            <signal name="changed" handler="on_peak_entry_changed" swapped="no"/>
-                                          </object>
-                                          <packing>
-                                            <property name="expand">False</property>
-                                            <property name="fill">True</property>
-                                            <property name="padding">5</property>
-                                            <property name="position">0</property>
-                                          </packing>
-                                        </child>
-                                        <child>
-                                          <object class="GtkEntry" id="peak_area_entry">
-                                            <property name="visible">True</property>
-                                            <property name="can_focus">True</property>
-                                            <property name="width_chars">10</property>
-                                            <property name="xalign">0.5</property>
-                                            <signal name="changed" handler="on_peak_entry_changed" swapped="no"/>
-                                          </object>
-                                          <packing>
-                                            <property name="expand">False</property>
-                                            <property name="fill">True</property>
-                                            <property name="padding">5</property>
-                                            <property name="position">1</property>
-                                          </packing>
-                                        </child>
-                                        <child>
-                                          <object class="GtkEntry" id="peak_fwhm_entry">
-                                            <property name="visible">True</property>
-                                            <property name="can_focus">True</property>
-                                            <property name="width_chars">10</property>
-                                            <property name="xalign">0.5</property>
-                                            <signal name="changed" handler="on_peak_entry_changed" swapped="no"/>
-                                          </object>
-                                          <packing>
-                                            <property name="expand">False</property>
-                                            <property name="fill">True</property>
-                                            <property name="padding">5</property>
-                                            <property name="position">2</property>
-                                          </packing>
-                                        </child>
-                                      </object>
-                                      <packing>
-                                        <property name="expand">False</property>
-                                        <property name="fill">True</property>
-                                        <property name="position">6</property>
+                                        <property name="position">2</property>
                                       </packing>
                                     </child>
                                   </object>

@@ -121,7 +121,8 @@ class XPL(Gtk.Application):
                 self.on_calibrate,
             "on_normalization_switch_activate": self.on_normalize,
             "on_region_background_type_combo_changed": self.on_change_bgtype,
-            "on_peak_entry_changed": self.on_peak_entry_changed,
+            "on_peak_entry_activate": self.on_peak_entry_activate,
+            "on_peak_name_entry_changed": self.on_peak_name_entry_changed,
         }
         handlers.update(self.win.handlers)
         self.builder.connect_signals(handlers)
@@ -440,7 +441,7 @@ class XPL(Gtk.Application):
             bgtype = combo.get_active_text()
             self.dh.manipulate_region(regionID, bgtype=bgtype)
 
-    def on_peak_entry_changed(self, *_args):
+    def on_peak_entry_activate(self, *_args):
         """Apply constraint strings from peak entries."""
         peakID = self.view.get_active_peak()
         def apply_constraint_string(c_string, param):
@@ -458,6 +459,14 @@ class XPL(Gtk.Application):
                     max_ = None
                 self.dh.constrain_peak(peakID, param, min_=min_, max_=max_)
             else:
+                try:
+                    value = float(c_string.strip())
+                except ValueError:
+                    pass
+                else:
+                    self.dh.constrain_peak(
+                        peakID, param, vary=False, value=value
+                    )
                 expr = c_string.strip()
                 self.dh.constrain_peak(peakID, param, expr=expr)
         c_fwhm = self.builder.get_object("peak_fwhm_entry").get_text()
@@ -466,12 +475,16 @@ class XPL(Gtk.Application):
         apply_constraint_string(c_fwhm, "area")
         c_fwhm = self.builder.get_object("peak_position_entry").get_text()
         apply_constraint_string(c_fwhm, "center")
+
+    def on_peak_name_entry_changed(self, *_args):
+        """Change name of the peak."""
+        peakID = self.view.get_active_peak()
         peakname = self.builder.get_object("peak_name_entry").get_text()
         self.dh.amend_peak(peakID, name=peakname.strip())
 
     def on_fit(self, *_args):
         """Fits the current peaks."""
-        self.on_peak_entry_changed()
+        # self.on_peak_entry_activate()
         regionID = self.view.get_active_region()
         if regionID:
             self.dh.fit_region(regionID)
