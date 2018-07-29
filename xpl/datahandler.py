@@ -121,10 +121,10 @@ class BaseDataHandler(object):
         except ValueError:
             pass
 
-    def _emit(self, signal, *data):
+    def _emit(self, signal, *data, **kwdata):
         """Emits a signal with additional arguments data."""
         for func in self._observers[signal]:
-            func(*data)
+            func(*data, **kwdata)
 
     def isempty(self):
         """Returns True if self._spectra is empty."""
@@ -561,7 +561,8 @@ class Spectrum(XPLContainer):
 
 class Region(XPLContainer):
     """A region container."""
-    # pylint: disable=no-member, access-member-before-definition
+    # pylint: disable=no-member
+    # pylint: access-member-before-definition
     bgtypes = ("none", "shirley", "linear")
     _required = ("spectrum", "emin", "emax")
     _defaults = {
@@ -575,7 +576,6 @@ class Region(XPLContainer):
         self.spectrum = regiondict.pop("spectrum")
         self.emin = float(regiondict.pop("emin"))
         self.emax = float(regiondict.pop("emax"))
-        print(self.emin, self.emax)
 
         self.bgtype = "shirley"
         self.background = None
@@ -588,7 +588,7 @@ class Region(XPLContainer):
 
         if not self.name:
             self.name = "Region {}".format(self.spectrum.region_number)
-        print([attr for attr in regiondict if attr not in self._defaults])
+
         assert not [attr for attr in regiondict if attr not in self._defaults]
 
     def set(self, attr, value):
@@ -651,7 +651,14 @@ class Region(XPLContainer):
     @property
     def fit_cps(self):
         """Fetches the evaluation of the total model from ModelIface."""
-        return self.model.get_cps()
+        return self.model.get_cps(self.energy)
+
+    @property
+    def fit_cps_fullrange(self):
+        """Fetches the evaluation of the total model from ModelIFace
+        over the full energy range of the spectrum.
+        """
+        return self.model.get_cps(self.spectrum.energy_c)
 
     def add_peak(self, **peakdict):
         """Adds Peak peak to this region."""
@@ -685,6 +692,7 @@ class Peak(XPLContainer):
     """A peak container."""
     # pylint: disable=no-member
     # pylint: disable=attribute-defined-outside-init
+    # pylint: disable=access-member-before-definition
     _required = ("region",)
     _defaults = {
         "name": "",
@@ -714,11 +722,11 @@ class Peak(XPLContainer):
             self.name = "Peak {}".format(
                 ascii_uppercase[self.region.peak_number])
 
-        print(peakdict)
         assert not [attr for attr in peakdict if attr not in self._defaults]
 
     def set_constraints(self, param, **constraints):
-        """Adds the constraints written in the dict constraints."""
+        """Adds the constraints written in the dict constraints.
+        """
         constraints = {k: v for k, v in constraints.items() if v is not None}
         value = constraints.get("value", None)
         vary = constraints.get("vary", True)
@@ -732,20 +740,19 @@ class Peak(XPLContainer):
         )
 
     def get_constraints(self, attr):
-        """Returns a dictionary containing the constraints."""
+        """Returns a dictionary containing the constraints.
+        """
         return self.model.get_constraints(self, attr)
 
     @property
     def area(self):
-        """
-        Returns value of model area parameter.
+        """Returns value of model area parameter.
         """
         return self.model.get_value(self, "area")
 
     @area.setter
     def area(self, value):
-        """
-        Sets the value of model area parameter in the model.
+        """Sets the value of model area parameter in the model.
         """
         self.model.set_value(self, "area", value)
 
@@ -761,43 +768,48 @@ class Peak(XPLContainer):
 
     @property
     def fwhm(self):
-        """
-        Gets fwhm inside model.
+        """Gets fwhm inside model.
         """
         return self.model.get_value(self, "fwhm")
 
     @fwhm.setter
     def fwhm(self, value):
-        """
-        Sets fwhm inside model.
+        """Sets fwhm inside model.
         """
         self.model.set_value(self, "fwhm", value)
 
     @property
     def center(self):
-        """
-        Gets center from model.
+        """Gets center from model.
         """
         return self.model.get_value(self, "center")
 
     @center.setter
     def center(self, value):
-        """
-        Sets center in model.
+        """Sets center in model.
         """
         self.model.set_value(self, "center", value)
 
     @property
     def fit_cps(self):
-        """Fetches peak cps from the ModelIface."""
-        return self.model.get_peak_cps(self)
+        """Fetches peak cps from the ModelIface.
+        """
+        return self.model.get_peak_cps(self, self.region.energy)
+
+    @property
+    def fit_cps_fullrange(self):
+        """Fetches peak cps over the full length of the spectrum.
+        """
+        return self.model.get_peak_cps(self, self.region.spectrum.energy_c)
 
     @property
     def energy(self):
-        """Returns energy vector from region."""
+        """Returns energy vector from region.
+        """
         return self.region.energy
 
     @property
     def background(self):
-        """Returns background vector from region."""
+        """Returns background vector from region.
+        """
         return self.region.background

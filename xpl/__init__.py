@@ -66,6 +66,7 @@ def load_config(config, path):
         config.set("io", "project_file", "None")
         config.set("io", "project_dir", os.environ["HOME"])
         config.set("io", "data_dir", os.environ["HOME"])
+        config.set("io", "export_dir", os.environ["HOME"])
         with open(path, "w") as cfg_file:
             config.write(cfg_file)
     else:

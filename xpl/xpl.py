@@ -228,7 +228,7 @@ class XPL(Gtk.Application):
             self.win,
             Gtk.FileChooserAction.SAVE,
             ("_Cancel", Gtk.ResponseType.CANCEL, "_Save", Gtk.ResponseType.OK),
-            )
+        )
         dialog.set_current_folder(__config__.get("io", "project_dir"))
         dialog.set_do_overwrite_confirmation(True)
         dialog.add_filter(SimpleFileFilter(".xpl", ["*.xpl"]))
@@ -256,7 +256,7 @@ class XPL(Gtk.Application):
             self.win,
             Gtk.FileChooserAction.OPEN,
             ("_Cancel", Gtk.ResponseType.CANCEL, "_Open", Gtk.ResponseType.OK),
-            )
+        )
         dialog.set_current_folder(__config__.get("io", "project_dir"))
         dialog.add_filter(SimpleFileFilter(".xpl", ["*.xpl"]))
         response = dialog.run()
@@ -276,6 +276,37 @@ class XPL(Gtk.Application):
         self.win.set_title(u"{} — {}".format(fname, __appname__))
         logger.info("opened project file {}".format(fname))
 
+    def on_export_as_txt(self, _action, *_args):    #TODO gui action
+        """Export currently viewed stuff as txt."""
+        dialog = Gtk.FileChooserDialog(
+            "Export as txt...",
+            self.win,
+            Gtk.FileChooserAction.SAVE,
+            ("_Cancel", Gtk.ResponseType.CANCEL, "_Save", Gtk.ResponseType.OK),
+        )
+        dialog.set_current_folder(__config__.get("io", "export_dir"))
+        pfile = __config__.get("io", "project_file")
+        if pfile != "None":
+            bname = "{}_data.txt".format(os.path.basename(pfile).split(".")[0])
+        else:
+            bname = "Untitled.txt"
+        dialog.set_current_name(bname)
+        dialog.set_do_overwrite_confirmation(True)
+        dialog.add_filter(SimpleFileFilter(".txt", ["*.txt"]))
+        response = dialog.run()
+        if response == Gtk.ResponseType.OK:
+            fname = dialog.get_filename()
+            spectrumIDs = self.view.get_active_spectra()
+            if len(spectrumIDs) != 1:
+                logger.warning("txt export only supports single spectra")
+            else:
+                fileio.export_txt(self.dh, spectrumIDs[0], fname)
+            dialog.destroy()
+            return True
+        logger.debug("abort file export")
+        dialog.destroy()
+        return False
+
     def on_import_spectra(self, _widget, *_args):
         """Load one or more spectra from a file chosen by the user."""
         dialog = Gtk.FileChooserDialog(
@@ -283,7 +314,7 @@ class XPL(Gtk.Application):
             self.win,
             Gtk.FileChooserAction.OPEN,
             ("_Cancel", Gtk.ResponseType.CANCEL, "_Open", Gtk.ResponseType.OK),
-            )
+        )
         dialog.set_current_folder(__config__.get("io", "data_dir"))
         dialog.set_select_multiple(True)
         dialog.add_filter(

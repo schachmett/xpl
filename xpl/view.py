@@ -658,7 +658,7 @@ class XPLCanvasInterface():
                     va="bottom"
                 )
 
-    def _on_dh_data_changed(self, ID=None, attr=None, **_kwargs):
+    def _on_dh_data_changed(self, ID=None, attr=None, isvalid=True):
         """Replots if the ID is affected. Depending on changed attr, the
         axislims are kept or not. The ID is affected either if it is
         in self._plotIDs or its parend is. Also, if no ID is given,

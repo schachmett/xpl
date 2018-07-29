@@ -86,23 +86,23 @@ class RegionFitModelIface(object):
         result = self._total_model.fit(y, self._params, x=self._region.energy)
         self._params = result.params
 
-    def get_peak_cps(self, peak):
+    def get_peak_cps(self, peak, energy):
         """Returns the model evaluation value for a given Peak."""
         if peak.prefix not in self._single_models:
             logger.error("peak {} not in model of region {}"
                          "".format(peak.ID, self._region.ID))
             raise AttributeError("Peak not in model")
         model = self._single_models[peak.prefix]
-        results = model.eval(params=self._params, x=self._region.energy)
+        results = model.eval(params=self._params, x=energy)
         return results
 
-    def get_cps(self):
+    def get_cps(self, energy):
         """Returns overall fit result."""
         if not self._total_model:
-            return [0] * len(self._region.energy)
+            return [0] * len(energy)
         results = self._total_model.eval(
             params=self._params,
-            x=self._region.energy
+            x=energy
         )
         return results
 

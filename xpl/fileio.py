@@ -6,6 +6,7 @@ import re
 import pickle
 import sqlite3
 import logging
+import copy
 
 import numpy as np
 
@@ -25,7 +26,7 @@ class FileParser():
                 firstline = f.readline()
             if "Region" in firstline:
                 specdicts.extend(self.parse_eistxt(fname))
-            elif re.fullmatch("\d+\.\d+,\d+\n", firstline):
+            elif re.fullmatch(r"\d+\.\d+,\d+\n", firstline):
                 specdicts.append(self.parse_simple_xy(fname))
         elif fname.split(".")[-1] == "xy":
             logger.warning("parsing {} not yet implemented".format(fname))
@@ -40,6 +41,7 @@ class FileParser():
         """
         energy, intensity = np.genfromtxt(
             fname,
+            delimiter=",",
             unpack=True
         )
         specdict = {
@@ -100,6 +102,22 @@ def load_project(fname, datahandler):
     """Loads a datahandler object from a binary file."""
     with open(fname, "rb") as file:
         datahandler.load(pickle.load(file))
+
+def export_txt(dh, spectrumID, fname):
+    """Export given spectra and everything that belongs to it as txt."""
+    energy = dh.get(spectrumID, "energy")
+    data = np.insert(data, 0, )
+    cps = dh.get(spectrumID, "cps")
+    background = copy.deepcopy(cps)
+    for regionID in dh.children(spectrumID):
+        emin = np.searchsorted(energy, dh.get(regionID, "emin"))
+        emax = np.searchsorted(energy, dh.get(regionID, "emax"))
+        single_bg = dh.get(regionID, "background")
+        background[emin:emax] -= cps[emin:emax] - single_bg
+        fit = dh.get(regionID, "fit_cps_fullrange")
+        for peakID in dh.children(regionID):
+            peak_intensity = dh.get(peakID, "fit_cps_fullrange")
+    #TODO obviously
 
 
 class RSFHandler():
