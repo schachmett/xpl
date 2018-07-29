@@ -43,14 +43,14 @@ class RegionFitModelIface(object):
             model = PseudoVoigtModel(prefix=peak.prefix)
             model.set_param_hint("fraction", vary=False)
             params = model.make_params()
-            fwhmname = "{}fwhm".format(peak.prefix)
-            sigmaname = "{}sigma".format(peak.prefix)
-            params[fwhmname].set(expr="", vary=True)
-            params[sigmaname].set(expr="{}/2".format(fwhmname))
-            params.pretty_print()
+            # params.pretty_print()
         else:
             raise NotImplementedError("Only PseudoVoigt models supported")
-        self._params += params  #every third time, this fails
+        self._params += params
+        fwhmname = "{}fwhm".format(peak.prefix)
+        sigmaname = "{}sigma".format(peak.prefix)
+        params[fwhmname].set(vary=True)
+        params[sigmaname].set(expr="{}/2".format(fwhmname))
         self._single_models[peak.prefix] = model
 
     def remove_peak(self, peak):
@@ -125,8 +125,6 @@ class RegionFitModelIface(object):
                     * (1 + np.sqrt(1 / (np.pi * np.log(2))))
                 )
                 return height
-            # if attr == "fwhm":
-            #     return self.get_value(peak, "sigma") * 2
         else:
             raise NotImplementedError("Only PseudoVoigt models supported")
 
