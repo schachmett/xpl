@@ -43,7 +43,6 @@ class RegionFitModelIface(object):
             model = PseudoVoigtModel(prefix=peak.prefix)
             model.set_param_hint("fraction", vary=False)
             params = model.make_params()
-            # params.pretty_print()
         else:
             raise NotImplementedError("Only PseudoVoigt models supported")
         self._params += params

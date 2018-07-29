@@ -27,8 +27,8 @@ SPECTRUM_TITLES = OrderedDict({
     "notes": "Notes",
     "eis_region": "EIS Region",
     "filename": "File name",
-    "raw_sweeps": "Sweeps",
-    "raw_dwelltime": "Dwell Time [s]",
+    "sweeps": "Sweeps",
+    "dwelltime": "Dwell Time [s]",
     "pass_energy": "Pass Energy [eV]",
     "int_time": "Total Integration Time [s]"
 })
@@ -43,8 +43,8 @@ EDIT_TITLES = OrderedDict(
     (attr, SPECTRUM_TITLES[attr]) for attr in (
         "name",
         "notes",
-        "raw_sweeps",
-        "raw_dwelltime",
+        "sweeps",
+        "dwelltime",
         "pass_energy"
     )
 )

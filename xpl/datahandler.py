@@ -237,9 +237,9 @@ class DataHandler(BaseDataHandler):
                                "don't match".format(spectrumIDs))
                 return None
         energy = first_energy
-        raw_intensity = np.sum(
+        intensity = np.sum(
             [s.get("cps") * s.get("int_time") for s in spectra], axis=0)
-        raw_sweeps = np.sum([s.get("raw_sweeps") for s in spectra])
+        sweeps = np.sum([s.get("sweeps") for s in spectra])
         int_time = np.sum([s.get("int_time") for s in spectra])
         pass_energies = [s.get("pass_energy") for s in spectra]
         pass_energy = pass_energies[0] if len(set(pass_energies)) == 1 else 0
@@ -247,11 +247,10 @@ class DataHandler(BaseDataHandler):
         specdict = {
             "filename": "created_by_XPL",
             "energy": energy,
-            "raw_intensity": raw_intensity,
-            "raw_sweeps": raw_sweeps,
+            "intensity": intensity,
+            "sweeps": sweeps,
             "int_time": int_time,
-            "cps": raw_intensity / int_time,
-            "raw_dwelltime": int_time / raw_sweeps,
+            "dwelltime": int_time / sweeps,
             "pass_energy": pass_energy,
             "notes": notes,
         }
@@ -277,12 +276,11 @@ class DataHandler(BaseDataHandler):
         """Changes values of a spectrum."""
         assert self.isspectrum(spectrumID)
 
-        if "raw_sweeps" in newdict or "raw_dwelltime" in newdict:
+        if "sweeps" in newdict or "dwelltime" in newdict:
             newdict["int_time"] = str(
-                int(newdict.get("raw_sweeps",
-                                self.get(spectrumID, "raw_sweeps")))
-                * float(newdict.get("raw_dwelltime",
-                                    self.get(spectrumID, "raw_dwelltime")))
+                int(newdict.get("sweeps", self.get(spectrumID, "sweeps")))
+                * float(newdict.get("dwelltime",
+                                    self.get(spectrumID, "dwelltime")))
             )
         spectrum = self._idbook[spectrumID]
         for attr, value in newdict.items():
@@ -292,9 +290,9 @@ class DataHandler(BaseDataHandler):
                 logger.error("attribute {} can not be changed through"
                              "DataHandler.amend_spectrum()".format(attr))
                 continue
-            elif attr in ("int_time", "raw_dwelltime", "pass_energy"):
+            elif attr in ("int_time", "dwelltime", "pass_energy"):
                 value = float(value)
-            elif attr in ("raw_sweeps", "eis_region"):
+            elif attr in ("sweeps", "eis_region"):
                 value = int(value)
             if not self.get(spectrumID, attr) == value:
                 spectrum.set(attr, value)
@@ -403,12 +401,7 @@ class XPLContainer(object):
 
         self.type = "notype"
         for (attr, default) in self._defaults.items():
-            setattr(self, attr, attrdict.get(attr, default))
-
-        self.specdict_additional = dict([
-            (attr, default) for (attr, default) in attrdict.items()
-            if attr not in self._defaults
-            and attr not in self._required])
+            setattr(self, attr, attrdict.pop(attr, default))
 
     def new_ID(self):
         """Fetches a new ID."""
@@ -418,37 +411,19 @@ class XPLContainer(object):
 
     def set(self, attr, value):
         """Sets an attribute."""
-        try:
-            setattr(self, attr, value)
-        except AttributeError:
-            try:
-                self.specdict_additional[attr] = value
-            except KeyError:
-                raise AttributeError
+        setattr(self, attr, value)
 
     def get(self, attr):
         """Gets attribute value. If the attribute does not exist, None is
         returned."""
-        try:
-            return getattr(self, attr)
-        except AttributeError:
-            try:
-                return self.specdict_additional[attr]
-            except KeyError:
-                raise AttributeError
+        return getattr(self, attr)
 
     def get_multiple(self, attrs):
         """Gets attribute value. If the attribute does not exist, None is
         returned."""
         values = []
         for attr in attrs:
-            try:
-                values.append(getattr(self, attr))
-            except AttributeError:
-                try:
-                    values.append(self.specdict_additional[attr])
-                except KeyError:
-                    values.append(None)
+            values.append(getattr(self, attr))
         return values
 
     def __eq__(self, other):
@@ -490,29 +465,38 @@ class Spectrum(XPLContainer):
     """A spectrum container."""
     # pylint: disable=no-member
     # pylint: disable=access-member-before-definition
-    _required = ("energy", "cps")
+    _required = ("energy", "intensity")
     _defaults = {
         "name": "",
         "notes": "",
         "filename": "",
-        "int_time": 1,
-        "raw_sweeps": 1,
-        "raw_dwelltime": 1,
-        "pass_energy": 0,
+        "int_time": 1.0,
+        "sweeps": 1,
+        "dwelltime": 1.0,
+        "pass_energy": 0.0,
         "eis_region": 0,
     }
 
     def __init__(self, **specdict):
-        specdict["parent"] = None
         super().__init__(**specdict)
-        self.type = "spectrum"
-        if not self.name and self.get("eis_region"):
-            self.name = "EIS Region {}".format(self.get("eis_region"))
 
-        self.raw_energy = specdict["energy"]
+        self.type = "spectrum"
+        if not self.name:
+            if self.eis_region:
+                self.name = "EIS Spectrum {}".format(self.eis_region)
+            else:
+                self.name = "SPEC {}".format(self.ID)
+
+        self.int_time = self.dwelltime * self.sweeps
+
+        issorted = all(np.diff(specdict["energy"] >= 0))
+        self.raw_energy = np.array(sorted(specdict.pop("energy")))
         self.energy_c = copy.deepcopy(self.raw_energy)
         self.energy = copy.deepcopy(self.raw_energy)
-        self.raw_cps = specdict["cps"]
+        self.intensity = np.array(specdict.pop("intensity"))
+        if not issorted:
+            self.intensity = self.intensity[::-1]
+        self.raw_cps = self.intensity / self.int_time
         self.cps_c = copy.deepcopy(self.raw_cps)
         self.cps = copy.deepcopy(self.raw_cps)
 
@@ -521,6 +505,8 @@ class Spectrum(XPLContainer):
         self.calibration = 0
         self.norm = False
         self.smoothness = 0
+
+        assert not [attr for attr in specdict if attr not in self._defaults]
 
     def set(self, attr, value):
         """Overload set for some special attributes."""
@@ -575,7 +561,7 @@ class Spectrum(XPLContainer):
 
 class Region(XPLContainer):
     """A region container."""
-    # pylint: disable=no-member
+    # pylint: disable=no-member, access-member-before-definition
     bgtypes = ("none", "shirley", "linear")
     _required = ("spectrum", "emin", "emax")
     _defaults = {
@@ -586,10 +572,10 @@ class Region(XPLContainer):
         super().__init__(**regiondict)
         self.type = "region"
 
-        # not superfluous, needed for properties
-        self.spectrum = regiondict["spectrum"]
-        self.emin = regiondict["emin"]
-        self.emax = regiondict["emax"]
+        self.spectrum = regiondict.pop("spectrum")
+        self.emin = float(regiondict.pop("emin"))
+        self.emax = float(regiondict.pop("emax"))
+        print(self.emin, self.emax)
 
         self.bgtype = "shirley"
         self.background = None
@@ -600,8 +586,10 @@ class Region(XPLContainer):
         self.model = RegionFitModelIface(self)
         self.fit_all = None
 
-        if "name" not in regiondict:
+        if not self.name:
             self.name = "Region {}".format(self.spectrum.region_number)
+        print([attr for attr in regiondict if attr not in self._defaults])
+        assert not [attr for attr in regiondict if attr not in self._defaults]
 
     def set(self, attr, value):
         """Overload set for some special attributes."""
@@ -705,26 +693,29 @@ class Peak(XPLContainer):
 
     def __init__(self, **peakdict):
         super().__init__(**peakdict)
-        self.region = peakdict["region"]
+        self.region = peakdict.pop("region")
         self.model = self.region.model
         self.prefix = "p{}_".format(self.ID)
         self.label = "P{}".format(self.region.peak_number)
         self.type = "peak"
 
-        if peakdict.get("guess", None):
+        if peakdict.pop("guess", None):
             self.model.guess_params(self)
         else:
             # Order matters
-            self.fwhm = peakdict["fwhm"]
-            self.center = peakdict["center"]
+            self.fwhm = peakdict.pop("fwhm")
+            self.center = peakdict.pop("center")
             if "area" in peakdict:
-                self.area = peakdict["area"]
+                self.area = peakdict.pop("area")
             elif "height" in peakdict:
-                self.height = peakdict["height"]
+                self.height = peakdict.pop("height")
 
-        if "name" not in peakdict:
+        if not self.name:
             self.name = "Peak {}".format(
                 ascii_uppercase[self.region.peak_number])
+
+        print(peakdict)
+        assert not [attr for attr in peakdict if attr not in self._defaults]
 
     def set_constraints(self, param, **constraints):
         """Adds the constraints written in the dict constraints."""

@@ -20,10 +20,13 @@ class FileParser():
     def parse_spectrum_file(self, fname):
         """Checks file extension and calls appropriate parsing method."""
         specdicts = []
-        if fname.split(".")[-1] == "xym":
-            specdicts.append(self.parse_xymfile(fname))
-        elif fname.split(".")[-1] == "txt":
-            specdicts.extend(self.parse_eistxt(fname))
+        if fname.split(".")[-1] == "txt":
+            with open(fname, "r") as f:
+                firstline = f.readline()
+            if "Region" in firstline:
+                specdicts.extend(self.parse_eistxt(fname))
+            elif re.fullmatch("\d+\.\d+,\d+\n", firstline):
+                specdicts.append(self.parse_simple_xy(fname))
         elif fname.split(".")[-1] == "xy":
             logger.warning("parsing {} not yet implemented".format(fname))
         else:
@@ -31,28 +34,20 @@ class FileParser():
         return specdicts
 
     @staticmethod
-    def parse_xymfile(fname):
-        """Parses Omicron EIS split txt file."""
-        data = dict()
-        data["filename"] = fname
-        values = np.loadtxt(fname, delimiter="\t", comments="L",
-                            skiprows=5, unpack=True)
-        data["energy"] = values[0, ::-1]
-        data["raw_intensity"] = values[1, ::-1]
-        with open(fname, "r") as xyfile:
-            header = [line.split("\t") for i, line in enumerate(xyfile)
-                      if i in range(0, 4)]
-        data["eis_region"] = int(header[1][0])
-        data["raw_sweeps"] = int(header[1][6])
-        data["raw_dwelltime"] = float(header[1][7])
-        data["pass_energy"] = float(header[1][9])
-        data["notes"] = header[1][12]
-        data["name"] = ""
-        data["int_time"] = data["raw_dwelltime"] * data["raw_sweeps"]
-        data["cps"] = data["raw_intensity"] / data["int_time"]
-        if header[3][0] != "1":
-            return None
-        return data
+    def parse_simple_xy(fname):
+        """
+        Parses the most simple x, y file with no header.
+        """
+        energy, intensity = np.genfromtxt(
+            fname,
+            unpack=True
+        )
+        specdict = {
+            "energy": energy,
+            "intensity": intensity,
+            "notes": "No notes in file"
+        }
+        return specdict
 
     @staticmethod
     def parse_eistxt(fname):
@@ -83,15 +78,12 @@ class FileParser():
             header = [line.split("\t") for line in data[:4]]
             specdict = {
                 "energy": energy,
-                "raw_intensity": intensity,
+                "intensity": intensity,
                 "eis_region": int(header[1][0]),
-                "raw_sweeps": int(header[1][6]),
-                "raw_dwelltime": float(header[1][7]),
+                "sweeps": int(header[1][6]),
+                "dwelltime": float(header[1][7]),
                 "pass_energy": float(header[1][9]),
                 "notes": header[1][12],
-                "name": "",
-                "int_time": float(header[1][7]) * float(header[1][6]),
-                "cps": intensity / (float(header[1][7]) * float(header[1][6]))
             }
             if header[3][0] == "1":
                 specdicts.append(specdict)
