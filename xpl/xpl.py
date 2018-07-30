@@ -536,7 +536,7 @@ class XPL(Gtk.Application):
         __config__.set("window", "ysize", str(ysize))
         __config__.set("window", "xpos", str(xpos))
         __config__.set("window", "ypos", str(ypos))
-        with open(CFG_PATH, "w") as cfg_file:
+        with open(str(CFG_PATH), "w") as cfg_file:
             logger.info("writing config file...")
             __config__.write(cfg_file)
         logger.info("quitting...")
@@ -716,7 +716,7 @@ class XPLAppWindow(Gtk.ApplicationWindow):
         commentstring = """If you encounter any bugs, mail me or open an
                         issue on my github. Please include a logfile, it is
                         located at '{}'.
-                        """.format(LOG_PATH)
+                        """.format(str(LOG_PATH))
         commentstring = " ".join(commentstring.split())
         dialog.set_website(__website__)
         dialog.set_comments(commentstring)
@@ -727,7 +727,7 @@ class XPLAppWindow(Gtk.ApplicationWindow):
     def on_view_logfile(_action, *_args):
         """Views logfile in external text editor."""
         if sys.platform.startswith("linux"):
-            os.system("xdg-open {}".format(LOG_PATH))
+            os.system("xdg-open {}".format(str(LOG_PATH)))
         else:
             logger.warning("logfile viewing only implemented for linux")
 
@@ -735,7 +735,7 @@ class XPLAppWindow(Gtk.ApplicationWindow):
     def on_edit_colors(_action, *_args):
         """Views colors.ini file in external text editor."""
         if sys.platform.startswith("linux"):
-            os.system("xdg-open {}".format(COLOR_CFG_PATH))
+            os.system("xdg-open {}".format(str(COLOR_CFG_PATH)))
         else:
             logger.warning("color file editing only implemented for linux")
 

@@ -16,7 +16,7 @@ from gi.repository import GLib
 
 
 __appname__ = "XPL"
-__version__ = "0.8.3"
+__version__ = "0.8.4"
 __authors__ = ["Simon Fischer <sfischer@ifp.uni-bremen.de>"]
 __website__ = "https://github.com/schachmett/xpl"
 
@@ -68,9 +68,9 @@ def load_config(config, path):
         config.set("io", "data_dir", os.environ["HOME"])
         config.set("io", "export_dir", os.environ["HOME"])
         with open(path, "w") as cfg_file:
-            config.write(cfg_file)
+            config.write(str(cfg_file))
     else:
-        config.read(path)
+        config.read(str(path))
 
 
 def load_colors(colorconfig, path):
@@ -96,9 +96,9 @@ def load_colors(colorconfig, path):
         colorconfig.set("plotting", "rsf-vlines",
                         "#468CDE, #52D273, #E94F64, #E57254, #E8C454")
         with open(path, "w") as c_cfg_file:
-            colorconfig.write(c_cfg_file)
+            colorconfig.write(str(c_cfg_file))
     else:
-        colorconfig.read(path)
+        colorconfig.read(str(path))
 
 
 def make_logger(path):

@@ -387,7 +387,7 @@ class XPLCanvasInterface():
         self._navbar = builder.get_object("plot_toolbar")
 
         # get the rsfhandler needed to fetch rsf data that can be plotted
-        self.rsfhandler = RSFHandler(RSF_DB_PATH)
+        self.rsfhandler = RSFHandler(str(RSF_DB_PATH))
         # set up which rsf data should be plotted
         # by rsf_filter = (elements, source)
         self.rsf_filter = ([], "")
