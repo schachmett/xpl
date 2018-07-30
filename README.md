@@ -6,7 +6,7 @@ XPL is a tool for plotting and analyzing X-ray photoelectron spectroscopy (XPS) 
 ## Installation
 ### Ubuntu
 
-If you don't already have it installed, install python and pip as well as libffi6 and python-gi through apt. Python version needs to be >=3.6 and GTK needs to be version 3.20.
+If you don't already have it installed, install python and pip as well as libffi6 and python-gi through apt. Python version needs to be `>=3.5` (not tested below) and GTK needs to be version `>=3.14`.
 
 ```shell
 $ sudo apt install python3 pip3
@@ -14,7 +14,7 @@ $ sudo apt install libffi6 python3-gi
 $ pip3 install xpl
 ```
 
-On starting, XPL creates a `~/.config/xpl` folder where configuration files and converted spectrum files will be stored. To **start** xpl, just select it from you application menu. Alternatively, run it as a module:
+On starting, XPL creates a `~/.config/xpl` folder where configuration files and converted spectrum files will be stored. To **launch** xpl, just select it from your applications menu. Alternatively, run it as a module:
 
 ```shell
 $ python3 -m xpl
@@ -23,7 +23,7 @@ $ python3 -m xpl
 To **update** xpl, run
 
 ```shell
-$ pip3 install --upgrade --no-cache-dir xpl
+$ pip3 install --upgrade xpl
 ```
 
 ### Windows

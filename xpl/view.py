@@ -21,17 +21,17 @@ from xpl import __colors__, RSF_DB_PATH
 
 logger = logging.getLogger(__name__)
 
-SPECTRUM_TITLES = OrderedDict({
-    "ID": "SpectrumID",
-    "name": "Name",
-    "notes": "Notes",
-    "eis_region": "EIS Region",
-    "filename": "File name",
-    "sweeps": "Sweeps",
-    "dwelltime": "Dwell Time [s]",
-    "pass_energy": "Pass Energy [eV]",
-    "int_time": "Total Integration Time [s]"
-})
+SPECTRUM_TITLES = OrderedDict([
+    ("ID", "SpectrumID"),
+    ("name", "Name"),
+    ("notes", "Notes"),
+    ("eis_region", "EIS Region"),
+    ("filename", "File name"),
+    ("sweeps", "Sweeps"),
+    ("dwelltime", "Dwell Time [s]"),
+    ("pass_energy", "Pass Energy [eV]"),
+    ("int_time", "Total Integration Time [s]")
+])
 TV_TITLES = OrderedDict(
     (attr, SPECTRUM_TITLES[attr]) for attr in (
         "name",
@@ -50,15 +50,15 @@ EDIT_TITLES = OrderedDict(
 )
 EXCLUDING_KEY = " (multiple)"
 
-PEAK_TITLES = OrderedDict({
-    "ID": "PeakID",
-    "label": "Label",
-    "name": "Name",
-    "model_name": "Model",
-    "fwhm": "FWHM",
-    "area": "Area",
-    "center": "Position"
-})
+PEAK_TITLES = OrderedDict([
+    ("ID", "PeakID"),
+    ("label", "Label"),
+    ("name", "Name"),
+    ("model_name", "Model"),
+    ("fwhm", "FWHM"),
+    ("area", "Area"),
+    ("center", "Position")
+])
 PEAK_TV_TITLES = OrderedDict(
     (attr, PEAK_TITLES[attr]) for attr in (
         "label",

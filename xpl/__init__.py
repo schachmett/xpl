@@ -127,7 +127,7 @@ def make_logger(path):
             "file": {
                 "class": "logging.handlers.RotatingFileHandler",
                 "level": "DEBUG",
-                "filename": path,
+                "filename": str(path),
                 "formatter": "verbose",
                 "maxBytes": 2000000,
                 "backupCount": 3,
