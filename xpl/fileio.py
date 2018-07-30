@@ -69,6 +69,7 @@ class FileParser():
                 elif i == 0:
                     raise TypeError("wrong file, not matching EIS format")
                 single_spectrumdata.append(line)
+            spectrumdata.append(single_spectrumdata)
         specdicts = []
         for data in spectrumdata:
             energy, intensity = np.genfromtxt(
@@ -79,6 +80,7 @@ class FileParser():
             )
             header = [line.split("\t") for line in data[:4]]
             specdict = {
+                "filename": fname,
                 "energy": energy,
                 "intensity": intensity,
                 "eis_region": int(header[1][0]),

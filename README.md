@@ -6,7 +6,7 @@ XPL is a tool for plotting and analyzing X-ray photoelectron spectroscopy (XPS) 
 ## Installation
 ### Ubuntu
 
-If you don't already have it installed, install python and pip as well as libffi6 and python-gi through apt.
+If you don't already have it installed, install python and pip as well as libffi6 and python-gi through apt. Python version needs to be >=3.6 and GTK needs to be version 3.20.
 
 ```shell
 $ sudo apt install python3 pip3

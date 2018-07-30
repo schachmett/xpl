@@ -33,7 +33,7 @@ setup(
         "cairocffi",
         "lmfit"
     ],
-    python_requires="~=3.5",
+    python_requires="~=3.6",
     package_data={
         "xpl": [
             "menubar.ui",
