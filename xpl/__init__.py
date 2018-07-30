@@ -16,7 +16,7 @@ from gi.repository import GLib
 
 
 __appname__ = "XPL"
-__version__ = "0.8.5"
+__version__ = "0.8.5.2"
 __authors__ = ["Simon Fischer <sfischer@ifp.uni-bremen.de>"]
 __website__ = "https://github.com/schachmett/xpl"
 
@@ -26,7 +26,7 @@ RSF_DB_PATH = BASEDIR / "xpl/rsf.db"
 
 CONFDIR = Path(GLib.get_user_config_dir()) / "xpl"
 if not Path(CONFDIR).is_dir():
-    os.makedirs(CONFDIR)
+    os.makedirs(str(CONFDIR))
 CFG_PATH = CONFDIR / "config.ini"
 COLOR_CFG_PATH = CONFDIR / "colors.ini"
 LOG_PATH = CONFDIR / "xpl.log"
