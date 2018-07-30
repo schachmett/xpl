@@ -16,7 +16,7 @@ from gi.repository import GLib
 
 
 __appname__ = "XPL"
-__version__ = "0.8.4"
+__version__ = "0.8.5"
 __authors__ = ["Simon Fischer <sfischer@ifp.uni-bremen.de>"]
 __website__ = "https://github.com/schachmett/xpl"
 
@@ -127,7 +127,7 @@ def make_logger(path):
             "file": {
                 "class": "logging.handlers.RotatingFileHandler",
                 "level": "DEBUG",
-                "filename": path,
+                "filename": str(path),
                 "formatter": "verbose",
                 "maxBytes": 2000000,
                 "backupCount": 3,
