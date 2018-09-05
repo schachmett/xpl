@@ -225,7 +225,7 @@ class DataHandler(BaseDataHandler):
         self._emit("altered", True)
         return spectrum.ID
 
-    def add_averaged_spectrum(self, spectrumIDs):
+    def add_averaged_spectrum(self, spectrumIDs):   #TODO buggy
         """Adds a new spectrum which is the average of the given ones."""
         for spectrumID in spectrumIDs:
             self.isspectrum(spectrumID)
@@ -503,7 +503,7 @@ class Spectrum(XPLContainer):
         self.regions = []
         self.region_number = 1
         self.calibration = 0
-        self.norm = False
+        self.norm = "none"
         self.smoothness = 0
 
         assert not [attr for attr in specdict if attr not in self._defaults]
@@ -534,7 +534,7 @@ class Spectrum(XPLContainer):
         else:
             self.energy_c = self.raw_energy
         if self.norm:
-            self.cps_c = normalize(self.raw_cps, self.norm)
+            self.cps_c = normalize(self.raw_energy, self.raw_cps, self.norm)
         else:
             self.cps_c = self.raw_cps
         if self.smoothness:

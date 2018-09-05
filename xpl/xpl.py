@@ -16,7 +16,7 @@ from gi.repository import Gtk, Gio, GLib, Gdk
 from xpl import (__appname__, __version__, __authors__, __website__,
                  __config__, __colors__,
                  BASEDIR, COLOR_CFG_PATH, CFG_PATH, LOG_PATH)
-from xpl.view import XPLView
+from xpl.view import XPLView, XPLExportCanvasInterface
 import xpl.fileio as fileio
 from xpl.datahandler import DataHandler
 
@@ -119,7 +119,8 @@ class XPL(Gtk.Application):
             "on_smoothing_scale_adjustment_value_changed": self.on_smoothen,
             "on_calibration_spinbutton_adjustment_value_changed":
                 self.on_calibrate,
-            "on_normalization_switch_activate": self.on_normalize,
+            # "on_normalization_switch_activate": self.on_normalize,
+            "on_normalization_combo_changed": self.on_normalize,
             "on_region_background_type_combo_changed": self.on_change_bgtype,
             "on_peak_entry_activate": self.on_peak_entry_activate,
             "on_peak_name_entry_changed": self.on_peak_name_entry_changed,
@@ -150,6 +151,8 @@ class XPL(Gtk.Application):
             "clear-peaks": self.on_clear_peaks,
             "avg-selected-spectra": self.on_avg_selected_spectra,
             "fit": self.on_fit,
+            "export-txt": self.on_export_as_txt,
+            "export-image": self.on_export_as_image,
             "quit": self.on_quit
         }
         for name, callback in actions.items():
@@ -276,8 +279,12 @@ class XPL(Gtk.Application):
         self.win.set_title(u"{} — {}".format(fname, __appname__))
         logger.info("opened project file {}".format(fname))
 
-    def on_export_as_txt(self, _action, *_args):    #TODO gui action
+    def on_export_as_txt(self, _action, *_args):
         """Export currently viewed stuff as txt."""
+        spectrumIDs = self.view.get_active_spectra()
+        if len(spectrumIDs) != 1:
+            logger.warning("txt export only supports single spectra")
+            return False
         dialog = Gtk.FileChooserDialog(
             "Export as txt...",
             self.win,
@@ -296,16 +303,60 @@ class XPL(Gtk.Application):
         response = dialog.run()
         if response == Gtk.ResponseType.OK:
             fname = dialog.get_filename()
-            spectrumIDs = self.view.get_active_spectra()
-            if len(spectrumIDs) != 1:
-                logger.warning("txt export only supports single spectra")
-            else:
-                fileio.export_txt(self.dh, spectrumIDs[0], fname)
+            fileio.export_txt(self.dh, spectrumIDs[0], fname)
+            __config__.set("io", "export_dir", fname)
             dialog.destroy()
             return True
         logger.debug("abort file export")
         dialog.destroy()
         return False
+
+    def on_export_as_image(self, action, *_args):
+        """Export current view as image."""
+        spectrumIDs = self.view.get_active_spectra()
+        if len(spectrumIDs) < 1:
+            logger.warning("image export on empty canvas not possible")
+            return False
+
+        cviface = XPLExportCanvasInterface(self.builder, self.dh)
+        cviface.plot()
+        cviface.configure_figure()
+
+        cvdialog = self.builder.get_object("export_canvas_dialog")
+        response = cvdialog.run()
+        if response != Gtk.ResponseType.OK:
+            cvdialog.hide()
+            logger.debug("abort file export")
+            return False
+
+        fcdialog = Gtk.FileChooserDialog(
+            "Export as image...",
+            self.win,
+            Gtk.FileChooserAction.SAVE,
+            ("_Cancel", Gtk.ResponseType.CANCEL, "_Save", Gtk.ResponseType.OK),
+        )
+        fcdialog.set_current_folder(__config__.get("io", "export_dir"))
+        pfile = __config__.get("io", "project_file")
+        if pfile != "None":
+            bname = "{}_img.png".format(os.path.basename(pfile).split(".")[0])
+        else:
+            bname = "Untitled.png"
+        fcdialog.set_current_name(bname)
+        fcdialog.set_do_overwrite_confirmation(True)
+        fcdialog.add_filter(SimpleFileFilter("images", (
+            "*.png", "*.svg", "*.svgz", "*.jpeg", "*.jpg", "*.tif", "*.tiff",
+            "*.ps", "*.eps", "*.pdf", "*.pgf"
+        )))
+        response = fcdialog.run()
+        if response != Gtk.ResponseType.OK:
+            fcdialog.destroy()
+            logger.debug("abort file export")
+            return self.on_export_as_image(action)
+        fname = fcdialog.get_filename()
+        cviface.save(fname)
+        __config__.set("io", "export_dir", fname)
+        fcdialog.destroy()
+        return True
 
     def on_import_spectra(self, _widget, *_args):
         """Load one or more spectra from a file chosen by the user."""
@@ -460,9 +511,9 @@ class XPL(Gtk.Application):
         for spectrumID in self.view.get_active_spectra():
             self.dh.manipulate_spectrum(spectrumID, calibration=calibration)
 
-    def on_normalize(self, widget, *_args):
+    def on_normalize(self, combo, *_args):
         """Normalizes selected spectra."""
-        normalization = widget.get_active()
+        normalization = combo.get_active_text()
         for spectrumID in self.view.get_active_spectra():
             self.dh.manipulate_spectrum(spectrumID, norm=normalization)
 

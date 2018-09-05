@@ -107,19 +107,36 @@ def load_project(fname, datahandler):
 
 def export_txt(dh, spectrumID, fname):
     """Export given spectra and everything that belongs to it as txt."""
+    # pylint: disable=too-many-locals
     energy = dh.get(spectrumID, "energy")
-    data = np.insert(data, 0, )
     cps = dh.get(spectrumID, "cps")
     background = copy.deepcopy(cps)
+    allfit = np.array([0.0] * len(energy))
+    peaknames = []
+    peaks = []
     for regionID in dh.children(spectrumID):
         emin = np.searchsorted(energy, dh.get(regionID, "emin"))
         emax = np.searchsorted(energy, dh.get(regionID, "emax"))
         single_bg = dh.get(regionID, "background")
         background[emin:emax] -= cps[emin:emax] - single_bg
-        fit = dh.get(regionID, "fit_cps_fullrange")
+        allfit[emin:emax] += dh.get(regionID, "fit_cps")
         for peakID in dh.children(regionID):
-            peak_intensity = dh.get(peakID, "fit_cps_fullrange")
-    #TODO obviously
+            peakname = dh.get(peakID, "name")
+            peaknames.append("Peak {:19}".format(peakname.replace("Peak", "")))
+            peaks.append(dh.get(peakID, "fit_cps_fullrange"))
+    data = np.column_stack(
+        (energy, cps, background, allfit, *[peak for peak in peaks])
+    )
+    header = """
+        {:22}\t{:24}\t{:24}\t{:24}\t{}
+    """.format(
+        "Energy",
+        "CPS",
+        "Background",
+        "Fit",
+        "{}".format("\t".join(peaknames))
+    ).strip()
+    np.savetxt(fname, data, delimiter="\t", header=header)
 
 
 class RSFHandler():

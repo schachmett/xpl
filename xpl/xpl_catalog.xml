@@ -8,6 +8,7 @@
     <glade-widget-class title="XPL Spectrum TreeStore" name="XPLSpectrumTreeStore" parent="GtkTreeStore" generic-name="xplspectrumtreestore"/>
     <glade-widget-class title="XPL Peak TreeStore" name="XPLPeakTreeStore" parent="GtkTreeStore" generic-name="xplpeaktreestore"/>
     <glade-widget-class title="XPL Canvas" name="XPLCanvas" parent="GtkDrawingArea" generic-name="xplcanvas"/>
+    <glade-widget-class title="MPL Canvas" name="MPLCanvas" parent="GtkDrawingArea" generic-name="mplcanvas"/>
     <glade-widget-class title="XPL Plot Toolbar" name="XPLPlotToolbar" parent="GtkToolbar" generic-name="xplplottoolbar"/>
   </glade-widget-classes>
 </glade-catalog>

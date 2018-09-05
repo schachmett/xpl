@@ -82,14 +82,20 @@ def x_at_maximum(energy, intensity, span):
     maxen = energy[maxidx]
     return maxen
 
-def normalize(intensity, norm):
+def normalize(energy, intensity, norm):
     """Normalize intensity."""
-    if not norm:
+    if norm == "none" or not norm:
         return intensity
-    if isinstance(norm, (int, float)) and norm != 1:
-        normto = norm
-    else:
+    elif norm == "highest peak":
         normto = max(intensity)
+    elif norm == "high energy background":
+        lowbound = energy[-1] - 3
+        lowindex = np.abs(energy - lowbound).argmin()
+        normto = np.mean(intensity[lowindex:])
+    elif norm == "low energy background":
+        highbound = energy[0] + 3
+        highindex = np.abs(energy - highbound).argmin()
+        normto = np.mean(intensity[:highindex])
     return intensity / normto
 
 def getspan(energy, intensity, eminmax):

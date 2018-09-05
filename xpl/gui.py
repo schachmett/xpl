@@ -299,6 +299,12 @@ class XPLCanvas(FigureCanvas):
         figure = XPLFigure()
         super().__init__(figure)
 
+class MPLCanvas(FigureCanvas):
+    """Canvas for plotting spectra with matplotlib."""
+    __gtype_name__ = "MPLCanvas"
+    def __init__(self):
+        figure = Figure()
+        super().__init__(figure)
 
 # pylint: disable=too-few-public-methods
 class Cursors(object):

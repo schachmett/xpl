@@ -188,8 +188,9 @@ class RegionFitModelIface(object):
         evaluator.error.clear()
         isvalid = True
         try:
-            ast_expr = evaluator.parse(expr)
-            evaluator(ast_expr, show_errors=False)
+            evaluator.parse(expr)
+            self._params.valuesdict()
+            # evaluator(ast_expr, show_errors=False)
         except (SyntaxError, NameError):
             expr = ""
             isvalid = False

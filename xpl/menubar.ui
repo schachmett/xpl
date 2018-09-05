@@ -25,6 +25,16 @@
 					<attribute name="accel">&lt;Primary&gt;&lt;Shift&gt;s</attribute>
 				</item>
 				<item>
+					<attribute name="label">_Export as txt...</attribute>
+					<attribute name="action">app.export-txt</attribute>
+					<attribute name="accel">&lt;Primary&gt;&lt;Shift&gt;e</attribute>
+				</item>
+				<item>
+					<attribute name="label">_Export as image...</attribute>
+					<attribute name="action">app.export-image</attribute>
+					<attribute name="accel">&lt;Primary&gt;&lt;Shift&gt;i</attribute>
+				</item>
+				<item>
 					<attribute name="label">_Quit</attribute>
 					<attribute name="action">app.quit</attribute>
 					<attribute name="accel">&lt;Primary&gt;q</attribute>

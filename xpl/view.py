@@ -177,7 +177,7 @@ class XPLView():
         )
         smooth = self._builder.get_object("smoothing_scale_adjustment")
         cal = self._builder.get_object("calibration_spinbutton_adjustment")
-        norm = self._builder.get_object("normalization_switch")
+        norm = self._builder.get_object("normalization_combo")
 
         spectrumIDs = self._cviface.get_active_spectra()
         if len(spectrumIDs) != 1:
@@ -190,7 +190,14 @@ class XPLView():
                 caution.set_visible(False)
             smooth.set_value(self._dh.get(spectrumIDs[0], "smoothness"))
             cal.set_value(self._dh.get(spectrumIDs[0], "calibration"))
-            norm.set_active(self._dh.get(spectrumIDs[0], "norm"))
+            normtypes = {       # See xpl.glade file
+                "none": 0,
+                "highest peak": 1,
+                "high energy background": 2,
+                "low energy background": 3
+            }
+            norm_id = normtypes[self._dh.get(spectrumIDs[0], "norm")]
+            norm.set_active(norm_id)
 
 
 class XPLTreeViewInterface():
@@ -585,7 +592,6 @@ class XPLCanvasInterface():
             }
             self._ax.plot(energy, background + fit_cps, **lineprops)
 
-
     def _plot_peak(self, peakID):
         """Plots a peak."""
         energy = self._dh.get(peakID, "energy")
@@ -618,7 +624,6 @@ class XPLCanvasInterface():
                     "linestyle": "--"
                 }
                 self._ax.plot(energy, background + fit_cps, **lineprops)
-
 
     def _plot_rsfs(self, elements, source):
         """Plots RSF values for given elements with given X-ray souce."""
@@ -736,6 +741,7 @@ class XPLFitInterface():
     def activate_region(self, regionID):
         """Sets the active region. Always either calls activate_peak() or
         _update_widgets()."""
+        #TODO change selected background type
         if regionID == ActiveIDs.REGION:
             self._update_widgets()
             return
@@ -980,3 +986,180 @@ class XPLFitInterface():
             column.set_resizable(True)
             column.set_reorderable(True)
             self._peak_treeview.append_column(column)
+
+
+class XPLExportCanvasInterface():
+    """Plots on the canvas where images can be exported."""
+    def __init__(self, builder, datahandler):
+        self._builder = builder
+        self._dh = datahandler
+
+        # get all the gui elements defined in the xml file
+        # _canvas, _fig and _navbar special as they are defined in xpl.gui
+        self._canvas = self._builder.get_object("export_canvas")
+        self._fig = self._canvas.figure
+        self._ax = self._fig.ax
+
+        self._xy = [np.inf, -np.inf, np.inf, -np.inf]
+
+        # which elements should be plotted?
+        self._doplot = {
+            "spectrum": True,
+            "region-boundaries": False,
+            "region-background": True,
+            "region-fit": True,
+            "peak": True,
+            "peak-fill": True
+        }
+        self.lineprops = {
+            "spectrum": {
+                "color": "#111111",
+                "linewidth": 1,
+                "linestyle": "-",
+                "alpha": 1
+            },
+            "region-boundaries": {
+                "color": "#FFFFFF",
+                "linewidth": 1,
+                "linestyle": "--",
+                "alpha": 1
+            },
+            "region-background": {
+                "color": "#444444",
+                "linewidth": 1,
+                "linestyle": "--"
+            },
+            "region-fit": {
+                "color": "#1212A5",
+                "linewidth": 1,
+                "linestyle": "--"
+            },
+            "peak": {
+                "color": "#4040DD",
+                "linewidth": 1,
+                "linestyle": "--"
+            },
+            "peak-fill": {
+                "color": "#AAAAFF",
+                "alpha": 0.2
+            }
+        }
+
+    def save(self, fname):
+        """Saves the figure as image."""
+        self._fig.savefig(
+            fname,
+            bbox_inches="tight",
+            dpi=200,
+            transparent=True
+        )
+
+    def plot(self):
+        """Plots the active stuff."""
+        for spectrumID in ActiveIDs.SPECTRA:
+            self._plot_spectrum(spectrumID)
+            for regionID in self._dh.children(spectrumID):
+                self._plot_region(regionID)
+                for peakID in self._dh.children(regionID):
+                    self._plot_peak(peakID)
+
+    def configure_figure(self):
+        """Sets figure style."""
+        self._fig.set_size_inches(8, 6, forward=True)
+        self._ax.set_position([0.05, 0.1, 0.9, 0.8])
+
+        xmin, xmax, ymin, ymax = self._xy
+        pxmin = xmin - 0.05 * (xmax - xmin)
+        pxmax = xmax + 0.05 * (xmax - xmin)
+        pymin = 0
+        pymax = ymax + 0.1 * (ymax - ymin)
+        self._ax.set_xlim(pxmax, pxmin)
+        self._ax.set_ylim(pymin, pymax)
+
+        self._ax.set_facecolor("#FFFFFF")
+        self._fig.patch.set_facecolor("#FFFFFF")
+        self._ax.tick_params(
+            axis="both",
+            direction="in",
+            labelsize="large",
+            labelcolor="#000000",
+            color="#000000",
+            labelleft=False,
+            top=False,
+            right=False
+        )
+
+    def _plot_spectrum(self, spectrumID):
+        """Plots a spectrum and updates the xylims for a centered view."""
+        energy = self._dh.get(spectrumID, "energy")
+        cps = self._dh.get(spectrumID, "cps")
+        if not self._doplot["region-background"]:
+            new_cps = [0] * len(cps)
+            for regionID in self._dh.children(spectrumID):
+                emin = np.searchsorted(energy, self._dh.get(regionID, "emin"))
+                emax = np.searchsorted(energy, self._dh.get(regionID, "emax"))
+                background = self._dh.get(regionID, "background")
+                new_cps[emin:emax] += cps[emin:emax] - background
+            if any(new_cps):
+                cps = new_cps
+
+        if self._doplot["spectrum"]:
+            self._ax.plot(energy, cps, **self.lineprops["spectrum"])
+        self._xy = [
+            min(self._xy[0], min(energy)),
+            max(self._xy[1], max(energy)),
+            min(self._xy[2], min(cps)),
+            max(self._xy[3], max(cps))
+        ]
+
+    def _plot_region(self, regionID):
+        """Plots a region by plotting its limits with DraggableVLines and
+        plotting the background intensity."""
+        emin = self._dh.get(regionID, "emin")
+        emax = self._dh.get(regionID, "emax")
+        energy = self._dh.get(regionID, "energy")
+        background = self._dh.get(regionID, "background")
+        if not self._doplot["region-background"]:
+            background = [0] * len(background)
+        fit_cps = self._dh.get(regionID, "fit_cps")
+
+        if self._doplot["region-boundaries"]:
+            self._ax.axvline(emin, 0, 1, **self.lineprops["region-boundaries"])
+            self._ax.axvline(emax, 0, 1, **self.lineprops["region-boundaries"])
+
+        if self._doplot["region-background"] and any(background):
+            self._ax.plot(
+                energy, background, **self.lineprops["region-background"]
+            )
+
+        if self._doplot["region-fit"] and any(fit_cps):
+            self._ax.plot(
+                energy, background + fit_cps, **self.lineprops["region-fit"]
+            )
+
+    def _plot_peak(self, peakID):
+        """Plots a peak."""
+        energy = self._dh.get(peakID, "energy")
+        background = self._dh.get(peakID, "background")
+        if not self._doplot["region-background"]:
+            background = [0] * len(background)
+        fit_cps = self._dh.get(peakID, "fit_cps")
+        fwhm = self._dh.get(peakID, "fwhm")
+        center = self._dh.get(peakID, "center")
+        height = self._dh.get(peakID, "height")
+        fit_cps = np.where(
+            abs(energy - center) > 3 * fwhm, np.nan, fit_cps
+        )   #TODO
+
+        if self._doplot["peak"]:
+            self._ax.plot(
+                energy, background + fit_cps, **self.lineprops["peak"]
+            )
+
+        if self._doplot["peak-fill"]:
+            self._ax.fill_between(
+                energy,
+                background + fit_cps,
+                background,
+                **self.lineprops["peak-fill"]
+            )
