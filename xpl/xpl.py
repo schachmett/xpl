@@ -65,7 +65,6 @@ class XPL(Gtk.Application):
         self.dh = DataHandler()
         self.view = XPLView(self.builder, self.dh)
         self.view.set_region_boundary_setter(self.dh.manipulate_region)
-        self.parser = fileio.FileParser()
 
         statusbar = self.builder.get_object("statusbar")
         self.statusbar_id = statusbar.get_context_id("")
@@ -381,11 +380,9 @@ class XPL(Gtk.Application):
             __config__.set("io", "data_dir", dialog.get_current_folder())
             for fname in dialog.get_filenames():
                 ext = fname.split(".")[-1]
-                if ext in ["xym", "txt"]:
-                    specdicts.extend(self.parser.parse_spectrum_file(fname))
+                if ext in ["xym", "txt", "xy"]:
+                    specdicts.extend(fileio.parse_spectrum_file(fname))
                     logger.info("parsed and added file {}".format(fname))
-                elif ext in ["xy"]:
-                    logger.warning("{} not yet supported".format(ext))
                 else:
                     logger.warning("file {} not recognized".format(fname))
             for specdict in specdicts:

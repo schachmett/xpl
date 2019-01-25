@@ -16,83 +16,81 @@ from xpl import __config__
 logger = logging.getLogger(__name__)
 
 
-class FileParser():
-    """Parses arbitrary spectrum files"""
-    def parse_spectrum_file(self, fname):
-        """Checks file extension and calls appropriate parsing method."""
-        specdicts = []
-        if fname.split(".")[-1] == "txt":
-            with open(fname, "r") as f:
-                firstline = f.readline()
-            if "Region" in firstline:
-                specdicts.extend(self.parse_eistxt(fname))
-            elif re.fullmatch(r"\d+\.\d+,\d+\n", firstline):
-                specdicts.append(self.parse_simple_xy(fname))
-        elif fname.split(".")[-1] == "xy":
-            logger.warning("parsing {} not yet implemented".format(fname))
-        else:
-            logger.warning("file {} not recognized".format(fname))
-        return specdicts
+def parse_spectrum_file(fname):
+    """Checks file extension and calls appropriate parsing method."""
+    specdicts = []
+    if fname.split(".")[-1] == "txt":
+        with open(fname, "r") as f:
+            firstline = f.readline()
+        if "Region" in firstline:
+            specdicts.extend(parse_eistxt(fname))
+        elif re.fullmatch(r"\d+\.\d+,\d+\n", firstline):
+            specdicts.append(parse_simple_xy(fname, delimiter=","))
+    elif fname.split(".")[-1] == "xy":
+        specdicts.append(parse_simple_xy(fname))
+    else:
+        logger.warning("file {} not recognized".format(fname))
+    return specdicts
 
-    @staticmethod
-    def parse_simple_xy(fname):
-        """
-        Parses the most simple x, y file with no header.
-        """
+def parse_simple_xy(fname, delimiter=None):
+    """
+    Parses the most simple x, y file with no header.
+    """
+    energy, intensity = np.genfromtxt(
+        fname,
+        delimiter=delimiter,
+        unpack=True
+    )
+    specdict = {
+        "filename": fname,
+        "energy": energy,
+        "intensity": intensity,
+        "notes": "file {}".format(fname.split("/")[-1])
+    }
+    return specdict
+
+def parse_eistxt(fname):
+    """Splits Omicron EIS txt file."""
+    splitregex = re.compile(r"^Region.*")
+    skipregex = re.compile(r"^[0-9]*\s*False\s*0\).*")
+    spectrumdata = []
+    single_spectrumdata = []
+    with open(fname, "br") as eisfile:
+        for i, line in enumerate(eisfile):
+            line = line.decode("utf-8", "backslashreplace")
+            if re.match(splitregex, line):
+                if single_spectrumdata:
+                    spectrumdata.append(single_spectrumdata)
+                single_spectrumdata = []
+            elif re.match(skipregex, line):
+                continue
+            elif i == 0:
+                raise TypeError("wrong file, not matching EIS format")
+            single_spectrumdata.append(line)
+        spectrumdata.append(single_spectrumdata)
+    specdicts = []
+    for data in spectrumdata:
         energy, intensity = np.genfromtxt(
-            fname,
-            delimiter=",",
+            data,
+            skip_header=5,
+            comments="L",
             unpack=True
         )
+        header = [line.split("\t") for line in data[:4]]
         specdict = {
+            "filename": fname,
             "energy": energy,
             "intensity": intensity,
-            "notes": "No notes in file"
+            "eis_region": int(header[1][0]),
+            "name": "S {}".format(header[1][0]),
+            "sweeps": int(header[1][6]),
+            "dwelltime": float(header[1][7]),
+            "pass_energy": float(header[1][9]),
+            "notes": header[1][12],
         }
-        return specdict
-
-    @staticmethod
-    def parse_eistxt(fname):
-        """Splits Omicron EIS txt file."""
-        splitregex = re.compile(r"^Region.*")
-        skipregex = re.compile(r"^[0-9]*\s*False\s*0\).*")
-        spectrumdata = []
-        single_spectrumdata = []
-        with open(fname, "r") as eisfile:
-            for i, line in enumerate(eisfile):
-                if re.match(splitregex, line):
-                    if single_spectrumdata:
-                        spectrumdata.append(single_spectrumdata)
-                    single_spectrumdata = []
-                elif re.match(skipregex, line):
-                    continue
-                elif i == 0:
-                    raise TypeError("wrong file, not matching EIS format")
-                single_spectrumdata.append(line)
-            spectrumdata.append(single_spectrumdata)
-        specdicts = []
-        for data in spectrumdata:
-            energy, intensity = np.genfromtxt(
-                data,
-                skip_header=5,
-                comments="L",
-                unpack=True
-            )
-            header = [line.split("\t") for line in data[:4]]
-            specdict = {
-                "filename": fname,
-                "energy": energy,
-                "intensity": intensity,
-                "eis_region": int(header[1][0]),
-                "sweeps": int(header[1][6]),
-                "dwelltime": float(header[1][7]),
-                "pass_energy": float(header[1][9]),
-                "notes": header[1][12],
-            }
-            if header[3][0] == "1":
-                specdicts.append(specdict)
-        return specdicts
-
+        if header[3][0] == "1":
+            specdicts.append(specdict)
+    return specdicts
 
 def save_project(fname, datahandler):
     """Saves the current datahandler object as a binary file."""

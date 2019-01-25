@@ -198,7 +198,7 @@ class XPLFigure(Figure):
         self.ax.set_facecolor("#3A3A3A")
         self.patch.set_facecolor("#3A3A3A")
 
-        self._xy_buffer = {"default": [0, 1, 0, 1]}
+        self._xy_buffer = [0, 1, 0, 1]
         self._xy = [np.inf, -np.inf, np.inf, -np.inf]
 
     def reset_xy_centerlims(self):
@@ -220,37 +220,36 @@ class XPLFigure(Figure):
         """Returns the current value of self._xy[3]."""
         return self._xy[3]
 
-    def store_xylims(self, keyword="default"):
+    def store_xylims(self):
         """Stores axis limits in self._xy_buffer."""
         xmin = min(self.ax.get_xlim())
         xmax = max(self.ax.get_xlim())
         ymin = min(self.ax.get_ylim())
         ymax = max(self.ax.get_ylim())
-        self._xy_buffer[keyword] = [xmin, xmax, ymin, ymax]
+        self._xy_buffer = [xmin, xmax, ymin, ymax]
         # self._xy_buffer[1], self._xy_buffer[0] = self.ax.get_xlim()
         # self._xy_buffer[2], self._xy_buffer[3] = self.ax.get_ylim()
 
-    def restore_xylims(self, keyword="default"):
+    def restore_xylims(self):
         """Sets the axis limits."""
-        if keyword not in self._xy_buffer:
-            raise KeyError("key {} not in figure xy buffer".format(keyword))
-        if np.all(np.isfinite(self._xy_buffer[keyword])):
-            xmin, xmax, ymin, ymax = self._xy_buffer[keyword]
-            if np.all(np.isfinite(self._xy)) and (
-                    ymin > self._xy[3] or ymax < self._xy[2]):
-                self.center_view()
-                return
+        if np.all(np.isfinite(self._xy_buffer)):
+            xmin, xmax, ymin, ymax = self._xy_buffer
+            # if np.all(np.isfinite(self._xy)) and (
+            #         ymin > self._xy[3] or ymax < self._xy[2]):
+            #     self.center_view()
+            #     return
             self.ax.set_xlim(xmax, xmin)
             self.ax.set_ylim(ymin, ymax)
             self.set_ticks()
         else:
+            self._xy_buffer = [0, 1, 0, 1]
             self.restore_xylims()
 
     def isstored(self, keyword):
         """Returns if the keyword is already known."""
         return keyword in self._xy_buffer
 
-    def center_view(self, keyword="default"):
+    def center_view(self):
         """Focuses view on current plot."""
         if np.all(np.isfinite(self._xy)):
             bordered_center = [
@@ -259,10 +258,10 @@ class XPLFigure(Figure):
                 0,
                 self._xy[3] * 1.1
             ]
-            self._xy_buffer[keyword] = bordered_center
+            self._xy_buffer = bordered_center
         else:
             logger.warning("xylims not properly adjusted")
-        self.restore_xylims(keyword)
+        self.restore_xylims()
 
     def set_ticks(self):
         """Configures axes ticks."""
@@ -299,12 +298,14 @@ class XPLCanvas(FigureCanvas):
         figure = XPLFigure()
         super().__init__(figure)
 
+
 class MPLCanvas(FigureCanvas):
     """Canvas for plotting spectra with matplotlib."""
     __gtype_name__ = "MPLCanvas"
     def __init__(self):
         figure = Figure()
         super().__init__(figure)
+
 
 # pylint: disable=too-few-public-methods
 class Cursors(object):

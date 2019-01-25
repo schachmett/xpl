@@ -16,7 +16,7 @@ from gi.repository import GLib
 
 
 __appname__ = "XPL"
-__version__ = "0.8.5.4"
+__version__ = "0.8.6.0c"
 __authors__ = ["Simon Fischer <sfischer@ifp.uni-bremen.de>"]
 __website__ = "https://github.com/schachmett/xpl"
 
@@ -35,7 +35,7 @@ __config__ = configparser.ConfigParser()
 __colors__ = configparser.ConfigParser()
 
 
-def dothis():
+def on_import():
     """Gets called when xpl is imported."""
     make_logger(LOG_PATH)
     ex_logger = logging.getLogger("ExceptionLogger")
@@ -81,7 +81,8 @@ def load_colors(colorconfig, path):
         colorconfig.set("treeview", "tv-highlight-bg", "#F08763")
         colorconfig.add_section("plotting")
         colorconfig.set("plotting", "axisticks", "#AAAAAA")
-        colorconfig.set("plotting", "spectrum", "#B5C689")
+        colorconfig.set("plotting", "spectra",
+                        "#C3D2A1, #B5C689, #909F6E, #6C7752, #484F37")
         colorconfig.set("plotting", "region-vlines", "#A93F00")
         colorconfig.set("plotting", "region-vlines-active", "#F58B4C")
         colorconfig.set("plotting", "region-background", "#A93F00")
@@ -160,4 +161,4 @@ def introspect(gobject):
             print("{} not readable".format(param.name))
 
 
-dothis()
+on_import()
