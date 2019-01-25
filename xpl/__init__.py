@@ -16,11 +16,7 @@ from gi.repository import GLib
 
 
 __appname__ = "XPL"
-<<<<<<< HEAD
 __version__ = "0.8.6.0"
-=======
-__version__ = "0.8.6.0c"
->>>>>>> 1f30d31cb5c58989a37540b43c1d85391952e0a8
 __authors__ = ["Simon Fischer <sfischer@ifp.uni-bremen.de>"]
 __website__ = "https://github.com/schachmett/xpl"
 
