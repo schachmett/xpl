@@ -246,8 +246,8 @@ class DataHandler(BaseDataHandler):
         notes = ", ".join([s.get("name") for s in spectra])
         specdict = {
             "filename": "created_by_XPL",
-            "energy": energy,
-            "intensity": intensity,
+            "energy": energy[::-1],
+            "intensity": intensity[::-1],
             "sweeps": sweeps,
             "int_time": int_time,
             "dwelltime": int_time / sweeps,
@@ -482,15 +482,14 @@ class Spectrum(XPLContainer):
 
         self.type = "spectrum"
         if not self.name:
-            if self.eis_region:
-                self.name = "EIS Spectrum {}".format(self.eis_region)
-            else:
-                self.name = "SPEC {}".format(self.ID)
+            self.name = "SPEC {}".format(self.ID)
 
         self.int_time = self.dwelltime * self.sweeps
 
         issorted = all(np.diff(specdict["energy"] >= 0))
-        self.raw_energy = np.array(sorted(specdict.pop("energy")))
+        self.raw_energy = np.array(specdict.pop("energy"))
+        if not issorted:
+            self.raw_energy = self.raw_energy[::-1]
         self.energy_c = copy.deepcopy(self.raw_energy)
         self.energy = copy.deepcopy(self.raw_energy)
         self.intensity = np.array(specdict.pop("intensity"))
@@ -667,7 +666,7 @@ class Region(XPLContainer):
                 np.abs(self.energy - peakdict["center"]).argmin()]
             height = peakdict.pop("totalheight") - bg_at_center
             peakdict["height"] = height
-        if "angle" in peakdict:
+        if "angle" in peakdict and "height" in peakdict:
             fwhm = np.tan(peakdict.pop("angle")) * peakdict["height"]
             peakdict["fwhm"] = fwhm
 
@@ -726,7 +725,7 @@ class Peak(XPLContainer):
 
     def set_constraints(self, param, **constraints):
         """Adds the constraints written in the dict constraints.
-        """
+        """#TODO add center constraints to be inside region
         constraints = {k: v for k, v in constraints.items() if v is not None}
         value = constraints.get("value", None)
         vary = constraints.get("vary", True)

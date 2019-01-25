@@ -8,6 +8,7 @@ the DataHandler from xpl.datahandler."""
 from collections import OrderedDict
 import re
 import logging
+from itertools import cycle
 
 import gi
 gi.require_version('Gtk', '3.0')
@@ -112,7 +113,7 @@ class XPLView():
         else:
             for spectrumID in spectrumIDs:
                 assert self._dh.isspectrum(spectrumID)
-            self._cviface.store_xylims()
+            self._cviface._fig.store_xylims()
             ActiveIDs.SPECTRA = spectrumIDs
             self._tviface.activate_spectra(spectrumIDs)
         self._fitiface.activate_spectra(spectrumIDs)
@@ -439,7 +440,7 @@ class XPLCanvasInterface():
         """Plot only the given IDs."""
         self._plotIDs.clear()
         self._plotIDs.extend(IDs)
-        self.plot()
+        self.plot(keepaxes=False)
 
     def show_rsf(self, elements, source):
         """Add elements to the rsfs to be shown."""
@@ -459,14 +460,11 @@ class XPLCanvasInterface():
                     new_IDs.append(grandchildID)
         self._plotIDs = list(set(new_IDs))
 
-    def store_xylims(self):
-        """Stores the current xylims for the current view."""
-        xy_keyword = str(ActiveIDs.SPECTRA)
-        self._fig.store_xylims(keyword=xy_keyword)
-
     def plot(self, keepaxes=True):
         """Plots every ID in self._plotIDs after checking for child and
         grandchild IDs. Also plots RSF data"""
+        if keepaxes:
+            self._fig.store_xylims()
         self._update_active()
         # check if there actually is something to plot
         if not self._plotIDs:
@@ -477,18 +475,17 @@ class XPLCanvasInterface():
             self._navbar.disable_tools()
             return
 
-        xy_keyword = str(ActiveIDs.SPECTRA)
-        if not self._fig.isstored(xy_keyword):
-            keepaxes = False
-
         self._draglines.clear()
         self._fig.reset_xy_centerlims()
         self._ax.cla()
 
+        s_colorstr = __colors__.get("plotting", "spectra").replace(" ", "")
+        s_colors = cycle(s_colorstr.split(","))
+
         # call the individual plot jobs
         for ID in self._plotIDs:
             if self._dh.isspectrum(ID):
-                self._plot_spectrum(ID)
+                self._plot_spectrum(ID, next(s_colors))
             elif self._dh.isregion(ID):
                 self._plot_region(ID)
             elif self._dh.ispeak(ID):
@@ -501,15 +498,15 @@ class XPLCanvasInterface():
 
         # restore xylims if necessary and then redraw
         if keepaxes:
-            self._fig.restore_xylims(keyword=xy_keyword)
+            self._fig.restore_xylims()
         else:
-            self._fig.center_view(keyword=xy_keyword)
+            self._fig.center_view()
         self._canvas.draw_idle()
         self._navbar.disable_tools()
 
         logger.debug("canvas: plot IDs {}".format(self._plotIDs))
 
-    def _plot_spectrum(self, spectrumID):
+    def _plot_spectrum(self, spectrumID, color="#B5C689"):
         """Plots a spectrum and updates the xylims for a centered view."""
         energy = self._dh.get(spectrumID, "energy")
         cps = self._dh.get(spectrumID, "cps")
@@ -525,7 +522,7 @@ class XPLCanvasInterface():
 
         if self._doplot["spectrum"]:
             lineprops = {
-                "color": __colors__.get("plotting", "spectrum"),
+                "color": color,
                 "linewidth": 1,
                 "linestyle": "-",
                 "alpha": 1
@@ -684,7 +681,6 @@ class XPLCanvasInterface():
         if attr not in trigger_attrs:
             return
         keepaxes = not attr in ("norm",)
-        self.store_xylims()
         logger.debug("replotting because datahandler changed...")
         self.plot(keepaxes)
 

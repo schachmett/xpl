@@ -6,12 +6,12 @@
   <object class="GtkImage" id="add_peak_image">
     <property name="visible">True</property>
     <property name="can_focus">False</property>
-    <property name="icon_name">list-add-symbolic</property>
+    <property name="pixbuf">assets/addpeak.png</property>
   </object>
   <object class="GtkImage" id="add_region_image">
     <property name="visible">True</property>
     <property name="can_focus">False</property>
-    <property name="icon_name">list-add-symbolic</property>
+    <property name="pixbuf">assets/addregion.png</property>
   </object>
   <object class="GtkImage" id="atomlib_button_image">
     <property name="visible">True</property>
@@ -33,7 +33,7 @@
   <object class="GtkImage" id="peak_addguessed_image">
     <property name="visible">True</property>
     <property name="can_focus">False</property>
-    <property name="icon_name">camera-switch-symbolic</property>
+    <property name="pixbuf">assets/guesspeak.png</property>
   </object>
   <object class="XPLPeakTreeStore" id="peak_treestore"/>
   <object class="GtkTreeModelFilter" id="peak_filter_treestore">
@@ -45,12 +45,12 @@
   <object class="GtkImage" id="remove_peak_image">
     <property name="visible">True</property>
     <property name="can_focus">False</property>
-    <property name="icon_name">list-remove-symbolic</property>
+    <property name="pixbuf">assets/removepeak.png</property>
   </object>
   <object class="GtkImage" id="remove_region_image">
     <property name="visible">True</property>
     <property name="can_focus">False</property>
-    <property name="icon_name">list-remove-symbolic</property>
+    <property name="pixbuf">assets/removeregion.png</property>
   </object>
   <object class="GtkAdjustment" id="smoothing_scale_adjustment">
     <property name="upper">40</property>
@@ -845,6 +845,64 @@
                                         <property name="fill">True</property>
                                         <property name="padding">5</property>
                                         <property name="position">0</property>
+                                      </packing>
+                                    </child>
+                                    <child>
+                                      <object class="GtkBox">
+                                        <property name="width_request">250</property>
+                                        <property name="visible">True</property>
+                                        <property name="can_focus">False</property>
+                                        <property name="halign">center</property>
+                                        <child>
+                                          <object class="GtkComboBoxText" id="peak_model_combo">
+                                            <property name="visible">True</property>
+                                            <property name="can_focus">False</property>
+                                            <property name="active">0</property>
+                                            <items>
+                                              <item translatable="yes">PseudoVoigt</item>
+                                              <item translatable="yes">Doniach-Sunjic</item>
+                                            </items>
+                                          </object>
+                                          <packing>
+                                            <property name="expand">False</property>
+                                            <property name="fill">True</property>
+                                            <property name="padding">5</property>
+                                            <property name="position">0</property>
+                                          </packing>
+                                        </child>
+                                        <child>
+                                          <object class="GtkLabel" id="peak_alpha_label">
+                                            <property name="visible">True</property>
+                                            <property name="can_focus">False</property>
+                                            <property name="label" translatable="yes">α</property>
+                                            <property name="width_chars">5</property>
+                                          </object>
+                                          <packing>
+                                            <property name="expand">False</property>
+                                            <property name="fill">True</property>
+                                            <property name="padding">5</property>
+                                            <property name="position">1</property>
+                                          </packing>
+                                        </child>
+                                        <child>
+                                          <object class="GtkEntry" id="peak_alpha_entry">
+                                            <property name="visible">True</property>
+                                            <property name="can_focus">True</property>
+                                            <property name="width_chars">12</property>
+                                          </object>
+                                          <packing>
+                                            <property name="expand">False</property>
+                                            <property name="fill">True</property>
+                                            <property name="padding">5</property>
+                                            <property name="position">2</property>
+                                          </packing>
+                                        </child>
+                                      </object>
+                                      <packing>
+                                        <property name="expand">False</property>
+                                        <property name="fill">True</property>
+                                        <property name="padding">5</property>
+                                        <property name="position">1</property>
                                       </packing>
                                     </child>
                                     <child>

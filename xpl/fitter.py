@@ -38,18 +38,21 @@ class RegionFitModelIface(object):
             logger.error("peak with ID {} does not belong to region ID {}"
                          "".format(peak.ID, self._region.ID))
             raise ValueError("Peak does not belong to Region")
-
         if peak.model_name == "PseudoVoigt":
             model = PseudoVoigtModel(prefix=peak.prefix)
-            model.set_param_hint("fraction", vary=False)
+            model.set_param_hint("fraction", vary=False, value=0.2)
             params = model.make_params()
         else:
             raise NotImplementedError("Only PseudoVoigt models supported")
         self._params += params
         fwhmname = "{}fwhm".format(peak.prefix)
         sigmaname = "{}sigma".format(peak.prefix)
-        params[fwhmname].set(vary=True)
+        ampname = "{}amplitude".format(peak.prefix)
+        centername = "{}center".format(peak.prefix)
+        params[fwhmname].set(value=params[fwhmname].value, vary=True, min=0)
         params[sigmaname].set(expr="{}/2".format(fwhmname))
+        params[ampname].set(min=0)
+        params[centername].set(min=0)
         self._single_models[peak.prefix] = model
 
     def remove_peak(self, peak):
@@ -65,18 +68,33 @@ class RegionFitModelIface(object):
             self._params.pop(par)
 
     def guess_params(self, peak):
-        """Guesses parameters for a new peak."""
-        if peak.prefix not in self._single_models:
-            self.add_peak(peak)
-        model = self._single_models[peak.prefix]
+        """Guesses parameters for a new peak and adds it. See add_peak()."""
+        if peak.region is not self._region:
+            logger.error("peak with ID {} does not belong to region ID {}"
+                         "".format(peak.ID, self._region.ID))
+            raise ValueError("Peak does not belong to Region")
+        if peak.model_name == "PseudoVoigt":
+            model = PseudoVoigtModel(prefix=peak.prefix)
+            model.set_param_hint("fraction", vary=False)
+        else:
+            raise NotImplementedError("Only PseudoVoigt models supported")
         other_models_cps = [0] * len(self._region.energy)
         for other_peak in self._region.peaks:
             if other_peak == peak:
                 continue
-            other_models_cps += self.get_peak_cps(other_peak)
+            other_models_cps += self.get_peak_cps(other_peak, peak.energy)
         y = self._region.cps - self._region.background - other_models_cps
-        params = model.guess(y, x=self._region.energy)
+        params = model.guess(y, x=peak.energy)
         self._params += params
+        fwhmname = "{}fwhm".format(peak.prefix)
+        sigmaname = "{}sigma".format(peak.prefix)
+        ampname = "{}amplitude".format(peak.prefix)
+        centername = "{}center".format(peak.prefix)
+        params[fwhmname].set(value=params[fwhmname].value, vary=True, min=0)
+        params[sigmaname].set(expr="{}/2".format(fwhmname))
+        params[ampname].set(min=0)
+        params[centername].set(min=0)
+        self._single_models[peak.prefix] = model
 
     def fit(self):
         """Returns the fitted cps values."""
