@@ -79,6 +79,7 @@ class XPL(Gtk.Application):
 
     def do_activate(self):
         """Creates MainWindow."""
+        logger.debug("Activating application...")
         self.win = self.builder.get_object("main_window")
         self.win.set_application(self)
         self.win.set_helpers(self.builder, self.view)

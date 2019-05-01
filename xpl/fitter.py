@@ -98,6 +98,11 @@ class RegionFitModelIface(object):
 
     def fit(self):
         """Returns the fitted cps values."""
+        # dirty hack
+        for prefix in self._single_models:
+            paramname = "{}fraction".format(prefix)
+            self._params[paramname].set(value=0.15, vary=False)
+        # end dirty hack
         if not self._single_models:
             return
         y = (self._region.cps - self._region.background)
