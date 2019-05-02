@@ -103,6 +103,11 @@ def load_project(fname, datahandler):
     with open(fname, "rb") as file:
         datahandler.load(pickle.load(file))
 
+def merge_project(fname, datahandler):
+    """Merges a datahandler object from a binary file."""
+    with open(fname, "rb") as file:
+        datahandler.merge(pickle.load(file))
+
 def export_txt(dh, spectrumID, fname):
     """Export given spectra and everything that belongs to it as txt."""
     # pylint: disable=too-many-locals

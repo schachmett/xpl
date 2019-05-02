@@ -139,6 +139,7 @@ class XPL(Gtk.Application):
             "save-project": self.on_save,
             "save-project-as": self.on_save_as,
             "open-project": self.on_open_project,
+            "merge-project": self.on_merge_project,
             "import-spectra": self.on_import_spectra,
             "remove-spectra": self.on_remove_spectra,
             "edit-spectra": self.on_edit_spectra,
@@ -278,6 +279,25 @@ class XPL(Gtk.Application):
         fileio.load_project(fname, self.dh)
         self.win.set_title(u"{} — {}".format(fname, __appname__))
         logger.info("opened project file {}".format(fname))
+
+    def on_merge_project(self, _widget, *_args):
+        """Merge project file into current project."""
+        dialog = Gtk.FileChooserDialog(
+            "Select file to merge...",
+            self.win,
+            Gtk.FileChooserAction.OPEN,
+            ("_Cancel", Gtk.ResponseType.CANCEL, "_Open", Gtk.ResponseType.OK)
+        )
+        dialog.set_current_folder(__config__.get("io", "project_dir"))
+        dialog.add_filter(SimpleFileFilter(".xpl", ["*.xpl"]))
+        response = dialog.run()
+        if response == Gtk.ResponseType.OK:
+            fname = dialog.get_filename()
+            fileio.merge_project(fname, self.dh)
+            logger.info("merged project file {}".format(fname))
+        else:
+            logger.debug("abort project file merging")
+        dialog.destroy()
 
     def on_export_as_txt(self, _action, *_args):
         """Export currently viewed stuff as txt."""

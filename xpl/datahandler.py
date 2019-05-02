@@ -212,6 +212,18 @@ class DataHandler(BaseDataHandler):
             self._emit("added-spectrum", spectrum.ID)
         self._emit("altered", False)
 
+    def merge(self, spectra):
+        """Loads spectra without clearing self first."""
+        for spectrum in spectra:
+            spectrum.new_ID()
+            self._spectra.append(spectrum)
+            for region in spectrum.regions:
+                region.new_ID()
+                for peak in region.peaks:
+                    peak.new_ID()
+            self._emit("added-spectrum", spectrum.ID)
+        self._emit("altered", True)
+
     def save(self):
         """Returns all contents for pickling."""
         self._emit("altered", False)
