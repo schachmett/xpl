@@ -889,6 +889,7 @@
                                             <property name="visible">True</property>
                                             <property name="can_focus">True</property>
                                             <property name="width_chars">12</property>
+                                            <signal name="activate" handler="on_peak_entry_activate" swapped="no"/>
                                           </object>
                                           <packing>
                                             <property name="expand">False</property>

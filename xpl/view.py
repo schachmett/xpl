@@ -58,7 +58,8 @@ PEAK_TITLES = OrderedDict([
     ("model_name", "Model"),
     ("fwhm", "FWHM"),
     ("area", "Area"),
-    ("center", "Position")
+    ("center", "Position"),
+    ("alpha", "Alpha")
 ])
 PEAK_TV_TITLES = OrderedDict(
     (attr, PEAK_TITLES[attr]) for attr in (
@@ -67,6 +68,7 @@ PEAK_TV_TITLES = OrderedDict(
         "center",
         "area",
         "fwhm",
+        "alpha"
     )
 )
 
@@ -800,6 +802,7 @@ class XPLFitInterface():
         area_entry = self._builder.get_object("peak_area_entry")
         pos_entry = self._builder.get_object("peak_position_entry")
         name_entry = self._builder.get_object("peak_name_entry")
+        alpha_entry = self._builder.get_object("peak_alpha_entry")
 
         regionID = ActiveIDs.REGION
         peakID = ActiveIDs.PEAK
@@ -823,6 +826,7 @@ class XPLFitInterface():
             fwhm_entry.set_text(get_c_string("fwhm"))
             area_entry.set_text(get_c_string("area"))
             pos_entry.set_text(get_c_string("center"))
+            alpha_entry.set_text(get_c_string("alpha"))
             name_entry.set_text(self._dh.get(peakID, "name"))
 
         regions_addbox.set_sensitive(
@@ -918,6 +922,8 @@ class XPLFitInterface():
                 entry = self._builder.get_object("peak_area_entry")
             elif attr == "fwhm":
                 entry = self._builder.get_object("peak_fwhm_entry")
+            elif attr == "alpha":
+                entry = self._builder.get_object("peak_alpha_entry")
             imgname = "dialog-warning-symbolic" if not isvalid else None
             if entry:
                 entry.set_icon_from_icon_name(
@@ -958,7 +964,7 @@ class XPLFitInterface():
                     value = str(int(float(value)))
                 else:
                     value = "{:.2f}".format(float(value))
-            if attr in ("center", "fwhm", "area"):
+            if attr in ("center", "fwhm", "area", "alpha"):
                 constraints = self._dh.get_peak_constraints(peakID, attr)
                 cstring = ""
                 if constraints["expr"]:

@@ -40,7 +40,7 @@ class RegionFitModelIface(object):
             raise ValueError("Peak does not belong to Region")
         if peak.model_name == "PseudoVoigt":
             model = PseudoVoigtModel(prefix=peak.prefix)
-            model.set_param_hint("fraction", vary=False, value=0.2)
+            # model.set_param_hint("fraction", vary=False, value=0.2)
             params = model.make_params()
         else:
             raise NotImplementedError("Only PseudoVoigt models supported")
@@ -49,6 +49,7 @@ class RegionFitModelIface(object):
         sigmaname = "{}sigma".format(peak.prefix)
         ampname = "{}amplitude".format(peak.prefix)
         centername = "{}center".format(peak.prefix)
+        # alphaname = "{}fraction".format(peak.prefix)
         params[fwhmname].set(value=params[fwhmname].value, vary=True, min=0)
         params[sigmaname].set(expr="{}/2".format(fwhmname))
         params[ampname].set(min=0)
@@ -75,7 +76,7 @@ class RegionFitModelIface(object):
             raise ValueError("Peak does not belong to Region")
         if peak.model_name == "PseudoVoigt":
             model = PseudoVoigtModel(prefix=peak.prefix)
-            model.set_param_hint("fraction", vary=False)
+            # model.set_param_hint("fraction", vary=False)
         else:
             raise NotImplementedError("Only PseudoVoigt models supported")
         other_models_cps = [0] * len(self._region.energy)
@@ -99,9 +100,9 @@ class RegionFitModelIface(object):
     def fit(self):
         """Returns the fitted cps values."""
         # dirty hack
-        for prefix in self._single_models:
-            paramname = "{}fraction".format(prefix)
-            self._params[paramname].set(value=0.15, vary=False)
+        # for prefix in self._single_models:
+        #     paramname = "{}fraction".format(prefix)
+        #     self._params[paramname].set(value=0.15, vary=False)
         # end dirty hack
         if not self._single_models:
             return
@@ -136,7 +137,8 @@ class RegionFitModelIface(object):
             names = {
                 "area": "amplitude",
                 "fwhm": "fwhm",
-                "center": "center"
+                "center": "center",
+                "alpha": "fraction"
             }
             if attr == "height":
                 area = self.get_value(peak, "area")
@@ -164,7 +166,8 @@ class RegionFitModelIface(object):
             names = {
                 "area": "amplitude",
                 "fwhm": "fwhm",
-                "center": "center"
+                "center": "center",
+                "alpha": "fraction"
             }
             if attr == "height":
                 fwhm = self.get_value(peak, "fwhm")
@@ -188,7 +191,9 @@ class RegionFitModelIface(object):
             names = {
                 "area": "amplitude",
                 "fwhm": "fwhm",
-                "center": "center"}
+                "center": "center",
+                "alpha": "fraction"
+                }
         else:
             raise NotImplementedError("Only PseudoVoigt models supported")
 
@@ -229,7 +234,9 @@ class RegionFitModelIface(object):
             names = {
                 "area": "amplitude",
                 "fwhm": "fwhm",
-                "center": "center"}
+                "center": "center",
+                "alpha": "fraction"
+                }
         else:
             raise NotImplementedError("Only PseudoVoigt models supported")
 

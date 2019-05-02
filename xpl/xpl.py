@@ -560,6 +560,8 @@ class XPL(Gtk.Application):
         apply_constraint_string(c_fwhm, "area")
         c_fwhm = self.builder.get_object("peak_position_entry").get_text()
         apply_constraint_string(c_fwhm, "center")
+        c_alpha = self.builder.get_object("peak_alpha_entry").get_text()
+        apply_constraint_string(c_alpha, "alpha")
 
     def on_peak_name_entry_changed(self, *_args):
         """Change name of the peak."""

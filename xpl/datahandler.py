@@ -732,6 +732,9 @@ class Peak(XPLContainer):
         min_ = constraints.get("min_", 0)
         max_ = constraints.get("max_", np.inf)
         expr = constraints.get("expr", "")
+        if param == "alpha":
+            min_ = 0
+            max_ = 1
         logger.info("set peak {} '{}' constraints: min={}, max={}, expr={}"
                     "".format(self.ID, param, min_, max_, expr))
         return self.model.set_constraints(
@@ -788,6 +791,18 @@ class Peak(XPLContainer):
         """Sets center in model.
         """
         self.model.set_value(self, "center", value)
+
+    @property
+    def alpha(self):
+        """Gets alpha from model.
+        """
+        return self.model.get_value(self, "alpha")
+
+    @alpha.setter
+    def alpha(self, value):
+        """Sets alpha in model.
+        """
+        self.model.set_value(self, "alpha", value)
 
     @property
     def fit_cps(self):
