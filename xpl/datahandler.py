@@ -745,8 +745,8 @@ class Peak(XPLContainer):
         max_ = constraints.get("max_", np.inf)
         expr = constraints.get("expr", "")
         if param == "alpha":
-            min_ = 0
-            max_ = 1
+            min_ = max(0, min_)
+            max_ = min(1, max_)
         logger.info("set peak {} '{}' constraints: min={}, max={}, expr={}"
                     "".format(self.ID, param, min_, max_, expr))
         return self.model.set_constraints(

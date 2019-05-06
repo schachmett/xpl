@@ -531,9 +531,19 @@ class XPLCanvasInterface():
             }
             self._ax.plot(energy, cps, **lineprops)
 
+        regionIDs = self._dh.children(spectrumID)
+        if len(regionIDs) == 1:
+            emin = self._dh.get(regionIDs[0], "emin")
+            emax = self._dh.get(regionIDs[0], "emax")
+            emin -= (emax - emin) * 0.2
+            emax += (emax - emin) * 0.2
+        else:
+            emin = min(energy)
+            emax = max(energy)
+
         self._fig.update_xy_centerlims(
-            min(energy),
-            max(energy),
+            emin,
+            emax,
             min(cps),
             max(cps)
         )

@@ -83,6 +83,7 @@ class XPL(Gtk.Application):
         self.win = self.builder.get_object("main_window")
         self.win.set_application(self)
         self.win.set_helpers(self.builder, self.view)
+        self.win.set_wmclass(__appname__, __appname__)
         self.win.set_title(__appname__)
         self.win.show_all()
 
