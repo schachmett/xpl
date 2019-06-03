@@ -2,6 +2,12 @@
 
 XPL is a tool for plotting and analyzing X-ray photoelectron spectroscopy (XPS) data. It can fit peaks using Pseudo Voigt profiles (more models to come) while enabling Area, Position and FWHM restrainment of the individual peaks to physically sensible values (or expressions).
 
+## New Version
+
+There will be an implementation of Doniach-Sunjic type peaks as well as the possibility to control the Gauss-to-Lorentz ratio of Voigt/PseudoVoigt peaks in the near future.
+
+However, I am also working on a total rewrite which will be in a new repository and a different PyPi package. This will take some time until it is functional, so bear with me.
+
 
 ## Installation
 ### Ubuntu
