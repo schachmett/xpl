@@ -343,7 +343,7 @@ class XPLPlotToolbar(NavigationToolbar, Gtk.Toolbar):
         self.message = messagelabel
         self.mode_label = messagelabel
         self.xy_label = coordlabel
-        super().__init__(canvas, None)
+        NavigationToolbar.__init__(self, canvas, None)
 
         self.span_selector = SpanSelector(
             self.canvas.figure.ax,
@@ -367,6 +367,7 @@ class XPLPlotToolbar(NavigationToolbar, Gtk.Toolbar):
         the tools, but now GtkBuilder does the job and the connections
         are done in the Gtk.Application. This function is automatically
         called during NavigationToolbar.__init__"""
+        self._gtk_ids = {}
 
     def disable_tools(self):
         """Release widgetlock and disconnect all signals associated with
