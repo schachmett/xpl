@@ -91,7 +91,13 @@ class XPLPeakTreeStore(Gtk.TreeStore):
         """Adds values from rowdict to the Store. rowdict has to contain
         values for all keys in the XPLTreeModel.titles dict."""
         try:
-            values = [str(rowdict[attr]) for attr in self.titles.keys()]
+            values = []
+            for attr in self.titles.keys():
+                if attr in ("area", "fwhm", "center", "alpha"):
+                    values.append("{:.2f}".format(rowdict[attr]))
+                else:
+                    values.append(str(rowdict[attr]))
+            # values = [str(rowdict[attr]) for attr in self.titles.keys()]
         except KeyError:
             logger.error("XPLPeakTreeStore does not contain all necessary"
                          "keys for adding: {}".format(rowdict))

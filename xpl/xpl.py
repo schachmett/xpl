@@ -295,6 +295,7 @@ class XPL(Gtk.Application):
         if response == Gtk.ResponseType.OK:
             fname = dialog.get_filename()
             fileio.merge_project(fname, self.dh)
+            __config__.set("io", "project_dir", dialog.get_current_folder())
             logger.info("merged project file {}".format(fname))
         else:
             logger.debug("abort project file merging")
@@ -325,7 +326,7 @@ class XPL(Gtk.Application):
         if response == Gtk.ResponseType.OK:
             fname = dialog.get_filename()
             fileio.export_txt(self.dh, spectrumIDs[0], fname)
-            __config__.set("io", "export_dir", fname)
+            __config__.set("io", "export_dir", dialog.get_current_folder())
             dialog.destroy()
             return True
         logger.debug("abort file export")
@@ -500,8 +501,37 @@ class XPL(Gtk.Application):
     def on_add_guessed_peak(self, *_args):
         """Adds a peak where the parameters are guessed by lmfit."""
         regionID = self.view.get_active_region()
-        peakID = self.dh.add_peak(regionID, guess=True)
-        logger.info("guessed peak {} for region {}".format(peakID, regionID))
+        def create_peak(center, height, angle):
+            """Add peak"""
+            # center -= 2
+            if self.view.get_visible("region-background"):
+                peakID = self.dh.add_peak(
+                    regionID,
+                    totalheight=height,
+                    angle=angle,
+                    center=center,
+                    model_name="Doniach"
+                )
+            else:
+                peakID = self.dh.add_peak(
+                    regionID,
+                    height=height,
+                    angle=angle,
+                    center=center,
+                    model_name="Doniach"
+                )
+            logger.info("added peak {} to region {}".format(peakID, regionID))
+        wedgeprops = {
+            "edgecolor": __colors__.get("plotting", "peak-wedge-edge"),
+            "facecolor": __colors__.get("plotting", "peak-wedge-face")
+        }
+        plot_toolbar = self.builder.get_object("plot_toolbar")
+        rmin = self.dh.get(regionID, "emin")
+        rmax = self.dh.get(regionID, "emax")
+        plot_toolbar.get_wedge(create_peak, **wedgeprops, limits=(rmin, rmax))
+        # regionID = self.view.get_active_region()
+        # peakID = self.dh.add_peak(regionID, guess=True)
+        # logger.info("guessed peak {} for region {}".format(peakID, regionID))
 
     def on_remove_peak(self, *_args):
         """Removes currently selected peak."""
@@ -583,6 +613,8 @@ class XPL(Gtk.Application):
         apply_constraint_string(c_fwhm, "center")
         c_alpha = self.builder.get_object("peak_alpha_entry").get_text()
         apply_constraint_string(c_alpha, "alpha")
+        c_beta = self.builder.get_object("peak_beta_entry").get_text()
+        apply_constraint_string(c_beta, "conv")
 
     def on_peak_name_entry_changed(self, *_args):
         """Change name of the peak."""

@@ -188,6 +188,8 @@ class DataHandler(BaseDataHandler):
     def constrain_peak(self, peakID, attr, **constraints):
         """Sets constrains for a peak."""
         assert self.ispeak(peakID)
+        if self.get(peakID, "model_name") != "ConvDoniach" and attr == "conv":
+            return
         peak = self._idbook[peakID]
         isvalid = peak.set_constraints(attr, **constraints)
         self._emit("changed-peak", peakID, attr, isvalid)
@@ -744,7 +746,7 @@ class Peak(XPLContainer):
         min_ = constraints.get("min_", 0)
         max_ = constraints.get("max_", np.inf)
         expr = constraints.get("expr", "")
-        if param == "alpha":
+        if param == "alpha" and self.model_name == "PseudoVoigt":
             min_ = max(0, min_)
             max_ = min(1, max_)
         logger.info("set peak {} '{}' constraints: min={}, max={}, expr={}"
@@ -815,6 +817,22 @@ class Peak(XPLContainer):
         """Sets alpha in model.
         """
         self.model.set_value(self, "alpha", value)
+
+    @property
+    def conv(self):
+        """Gets alpha from model.
+        """
+        if not self.model_name == "ConvDoniach":
+            return 0
+        return self.model.get_value(self, "conv")
+
+    @conv.setter
+    def conv(self, value):
+        """Sets alpha in model.
+        """
+        if not self.model_name == "ConvDoniach":
+            return
+        self.model.set_value(self, "conv", value)
 
     @property
     def fit_cps(self):
