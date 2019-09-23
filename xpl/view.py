@@ -688,7 +688,7 @@ class XPLCanvasInterface():
             "norm", "smoothness", "calibration",
             "int_time", "energy", "cps",
             "bgtype", "emin", "emax",
-            "height", "area", "fwhm", "center"
+            "height", "area", "fwhm", "center", "alpha", "conv"
         )
         if attr not in trigger_attrs:
             return
@@ -813,6 +813,7 @@ class XPLFitInterface():
         pos_entry = self._builder.get_object("peak_position_entry")
         name_entry = self._builder.get_object("peak_name_entry")
         alpha_entry = self._builder.get_object("peak_alpha_entry")
+        conv_entry = self._builder.get_object("peak_beta_entry")
 
         regionID = ActiveIDs.REGION
         peakID = ActiveIDs.PEAK
@@ -821,6 +822,9 @@ class XPLFitInterface():
         if peakID:
             def get_c_string(attr):
                 """Get constraint string for peak.attr."""
+                if (attr == "conv"
+                        and "Conv" not in self._dh.get(peakID, "model_name")):
+                    return ""
                 constraints = self._dh.get_peak_constraints(peakID, attr)
                 cstring = ""
                 if constraints["expr"]:
@@ -837,6 +841,7 @@ class XPLFitInterface():
             area_entry.set_text(get_c_string("area"))
             pos_entry.set_text(get_c_string("center"))
             alpha_entry.set_text(get_c_string("alpha"))
+            conv_entry.set_text(get_c_string("conv"))
             name_entry.set_text(self._dh.get(peakID, "name"))
 
         regions_addbox.set_sensitive(
@@ -922,7 +927,10 @@ class XPLFitInterface():
         col_index = self._peak_model.get_col_index(attr)
         for row in self._peak_model:
             peakID_other = int(row[0])
-            value = str(self._dh.get(peakID_other, attr))
+            if attr in ("area", "fwhm", "center", "alpha", "conv"):
+                value = "{:.2f}".format(self._dh.get(peakID_other, attr))
+            else:
+                value = str(self._dh.get(peakID_other, attr))
             self._peak_model.set(row.iter, col_index, value)
         if peakID == ActiveIDs.PEAK:
             entry = None
@@ -934,6 +942,8 @@ class XPLFitInterface():
                 entry = self._builder.get_object("peak_fwhm_entry")
             elif attr == "alpha":
                 entry = self._builder.get_object("peak_alpha_entry")
+            elif attr == "conv":
+                entry = self._builder.get_object("peak_beta_entry")
             imgname = "dialog-warning-symbolic" if not isvalid else None
             if entry:
                 entry.set_icon_from_icon_name(
@@ -956,7 +966,14 @@ class XPLFitInterface():
                 peakID = int(row[0])
                 attrs = PEAK_TITLES.keys()
                 idxs = [self._peak_model.get_col_index(attr) for attr in attrs]
-                values = [str(self._dh.get(peakID, attr)) for attr in attrs]
+                values = []
+                for attr in attrs:
+                    if attr in ("area", "fwhm", "center", "alpha", "conv"):
+                        values.append(
+                            "{:.2f}".format(self._dh.get(peakID, attr)))
+                    else:
+                        values.append(str(self._dh.get(peakID, attr)))
+                # values = [str(self._dh.get(peakID, attr)) for attr in attrs]
                 self._peak_model.set(row.iter, idxs, values)
         else:
             logger.warning("inconsistency: region {} should be plotted, but "
@@ -974,7 +991,7 @@ class XPLFitInterface():
                     value = str(int(float(value)))
                 else:
                     value = "{:.2f}".format(float(value))
-            if attr in ("center", "fwhm", "area", "alpha"):
+            if attr in ("center", "fwhm", "area", "alpha", "conv"):
                 constraints = self._dh.get_peak_constraints(peakID, attr)
                 cstring = ""
                 if constraints["expr"]:
