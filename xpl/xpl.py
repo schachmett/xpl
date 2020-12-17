@@ -148,7 +148,7 @@ class XPL(Gtk.Application):
             "clear-regions": self.on_clear_regions,
             "add-region": self.on_add_region,
             "add-peak": self.on_add_peak,
-            "add-guessed-peak": self.on_add_guessed_peak,
+            "add-doniach-peak": self.on_add_doniach_peak,
             "remove-peak": self.on_remove_peak,
             "clear-peaks": self.on_clear_peaks,
             "avg-selected-spectra": self.on_avg_selected_spectra,
@@ -498,7 +498,7 @@ class XPL(Gtk.Application):
         rmax = self.dh.get(regionID, "emax")
         plot_toolbar.get_wedge(create_peak, **wedgeprops, limits=(rmin, rmax))
 
-    def on_add_guessed_peak(self, *_args):
+    def on_add_doniach_peak(self, *_args):
         """Adds a peak where the parameters are guessed by lmfit."""
         regionID = self.view.get_active_region()
         def create_peak(center, height, angle):

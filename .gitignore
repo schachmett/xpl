@@ -1,3 +1,4 @@
+obsolete_info
 *.pyc
 dist/
 *.egg-info

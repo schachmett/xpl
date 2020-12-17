@@ -30,10 +30,10 @@
     <property name="can_focus">False</property>
     <property name="pixbuf">assets/pan.png</property>
   </object>
-  <object class="GtkImage" id="peak_addguessed_image">
+  <object class="GtkImage" id="peak_adddoniach_image">
     <property name="visible">True</property>
     <property name="can_focus">False</property>
-    <property name="pixbuf">assets/guesspeak.png</property>
+    <property name="pixbuf">assets/add_doniachpeak.png</property>
   </object>
   <object class="XPLPeakTreeStore" id="peak_treestore"/>
   <object class="GtkTreeModelFilter" id="peak_filter_treestore">
@@ -734,8 +734,8 @@
                                         <property name="visible">True</property>
                                         <property name="can_focus">True</property>
                                         <property name="receives_default">True</property>
-                                        <property name="action_name">app.add-guessed-peak</property>
-                                        <property name="image">peak_addguessed_image</property>
+                                        <property name="action_name">app.add-doniach-peak</property>
+                                        <property name="image">peak_adddoniach_image</property>
                                         <property name="always_show_image">True</property>
                                       </object>
                                       <packing>
